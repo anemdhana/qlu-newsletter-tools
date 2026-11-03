@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YouTube captions</title>
+<link rel="stylesheet" href="./tools.css">
+</head>
+<body>
+<main>
+  <p class="crumb"><a href="./index.html">← Tools</a></p>
+  <p class="brand">Quantum Life University</p>
+  <h1>YouTube captions</h1>
+  <p class="sub">Timed text from one video, or every video in a playlist.</p>
+
+  <div class="panel">
+    <div class="grid" style="gap:0.55rem">
+      <div>
+        <label for="lang">Language</label>
+        <select id="lang">
+          <option value="auto" selected>Auto (best available)</option>
+          <option value="te">Telugu</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+      <div>
+        <label for="engine">If download fails, try</label>
+        <select id="engine">
+          <option value="innertube" selected>Standard</option>
+          <option value="yt-dlp">Alternate method</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label for="video">Video ID or link</label>
+      <input id="video" type="text" placeholder="e.g. dQw4w9WgXcQ or https://youtu.be/…" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="playlist">Playlist ID or link (optional)</label>
+      <input id="playlist" type="text" placeholder="e.g. PLxxxx or playlist URL…" autocomplete="off">
+    </div>
+    <div class="row">
+      <button type="button" class="primary" id="go">Download captions</button>
+      <span id="status" class="status"></span>
+    </div>
+    <pre id="preview" class="preview"></pre>
+  </div>
+</main>
+<script>
+  const statusEl = document.getElementById("status");
+  const preview = document.getElementById("preview");
+  const go = document.getElementById("go");
+
+  function setStatus(msg, kind) {
+    statusEl.textContent = msg || "";
+    statusEl.className = "status" + (kind ? " " + kind : "");
+  }
+
+  async function run() {
+    const video = document.getElementById("video").value.trim();
+    const playlist = document.getElementById("playlist").value.trim();
+    if (!video && !playlist) {
+      setStatus("Enter a video ID/link or playlist ID/link.", "err");
+      return;
+    }
+    go.disabled = true;
+    setStatus(playlist ? "Downloading playlist…" : "Downloading…");
+    preview.style.display = "none";
+    try {
+      const res = await fetch("/api/captions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          video,
+          playlist,
+          lang: document.getElementById("lang").value,
+          engine: document.getElementById("engine").value,
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Failed");
+      setStatus(data.message + " · ", "ok");
+      const a = document.createElement("a");
+      a.href = data.downloadUrl;
+      a.className = "dl";
+      a.textContent = "Download " + data.filename;
+      a.download = data.filename;
+      statusEl.appendChild(a);
+      if (data.preview) {
+        preview.style.display = "block";
+        preview.textContent = data.preview + "\n…";
+      }
+    } catch (e) {
+      setStatus(e.message || String(e), "err");
+    } finally {
+      go.disabled = false;
+    }
+  }
+
+  go.addEventListener("click", () => void run());
+</script>
+</body>
+</html>

@@ -1,0 +1,3 @@
+# Optional — only needed for: --engine yt-dlp
+# Default caption download uses Python stdlib only.
+yt-dlp>=2024.8.0

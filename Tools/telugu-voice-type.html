@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="te">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>తెలుగు స్పీచ్ టు టెక్స్ట్</title>
+<link rel="stylesheet" href="./tools.css">
+<style>
+  body { font-family: "Nirmala UI", "Noto Sans Telugu", "Segoe UI", sans-serif; }
+  .mic-row { display: flex; gap: 0.75rem; align-items: center; margin-top: 0; }
+  button.mic {
+    width: 2.75rem; height: 2.75rem; border-radius: 50%; border: 0; cursor: pointer;
+    background: #c44; color: white; font-size: 1.15rem; flex: 0 0 auto;
+    padding: 0; box-shadow: 0 4px 10px rgba(196, 68, 68, 0.22);
+  }
+  button.mic.on { background: var(--gold); box-shadow: 0 0 0 5px rgba(161, 123, 67, 0.2); }
+  #status { font-size: 0.92rem; color: var(--ink); }
+  #interim {
+    min-height: 2.5rem; padding: 0.45rem 0.65rem; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--paper); color: var(--muted);
+    font-size: 1.05rem; line-height: 1.5;
+  }
+  #final { min-height: 7rem; font-size: 1.05rem; line-height: 1.5; }
+  .path { font-size: 0.78rem; color: var(--muted); margin-top: 0.4rem; word-break: break-all; }
+  details { margin-top: 0.45rem; }
+  summary { cursor: pointer; font-weight: 600; color: var(--heading); font-size: 0.88rem; }
+  ul.cmds { columns: 2; padding-left: 1.1rem; margin: 0.45rem 0 0; font-size: 0.85rem; }
+  ul.cmds li { break-inside: avoid; margin: 0 0 0.3rem; }
+  code { font-family: "Nirmala UI", Consolas, monospace; }
+  @media (max-width: 700px) { ul.cmds { columns: 1; } }
+</style>
+</head>
+<body>
+<main>
+  <p class="crumb"><a href="./index.html">← Tools</a></p>
+  <p class="brand">Quantum Life University</p>
+  <h1>తెలుగు స్పీచ్ టు టెక్స్ట్</h1>
+  <p class="sub">మైక్ నొక్కి మాట్లాడండి — కాపీ లేదా Download .txt.</p>
+  <div class="panel">
+    <div class="mic-row">
+      <button class="mic" id="mic" type="button" aria-label="మైక్">🎤</button>
+      <div id="status">మైక్ నొక్కండి, ఆపై తెలుగులో మాట్లాడండి.</div>
+    </div>
+  </div>
+  <div class="panel" style="margin-top:0.65rem">
+    <label for="interim">Buffer (ఇంకా ఖాయం కాని మాటలు)</label>
+    <div id="interim" aria-live="polite"></div>
+    <div class="field">
+      <label for="final">Final text</label>
+      <textarea id="final" spellcheck="false" placeholder="ఇక్కడ తెలుగు వస్తుంది…"></textarea>
+    </div>
+    <div class="row">
+      <button type="button" id="copy">Copy</button>
+      <button type="button" class="primary" id="download">Download .txt</button>
+      <button type="button" id="clear">Clear</button>
+      <button type="button" id="stop">Stop</button>
+    </div>
+    <div class="path" id="path"></div>
+  </div>
+  <p class="note">Chromeలో మైక్ అనుమతి ఇవ్వండి. డ్రాఫ్ట్ ఈ బ్రౌజర్‌లోనే ఉంటుంది — వేరే చోటికి తీసుకెళ్లాలంటే Download .txt వాడండి.</p>
+  <details>
+    <summary>విరామ చిహ్నాలు — మాట్లాడి చేర్చండి</summary>
+    <ul class="cmds" id="cmds"></ul>
+  </details>
+</main>
+<script>
+const STORAGE_KEY = "qlu-swadhyaya-te-voice-transcript";
+const COMMANDS = [
+  ["కొత్త పేరా", "\n\n"],
+  ["new paragraph", "\n\n"],
+  ["కొత్త వాక్యం", "\n"],
+  ["new line", "\n"],
+  ["ఆశ్చర్యార్థకం గుర్తును", "!"],
+  ["బలంగా విసిరివేయు", "-"],
+  ["పూర్తి స్టాప్", "."],
+  ["పూర్ణ విరామం", "."],
+  ["పూర్ణవిరామం", "."],
+  ["ఫుల్ స్టాప్", "."],
+  ["full stop", "."],
+  ["ప్రశ్న గుర్తు", "?"],
+  ["question mark", "?"],
+  ["ప్రశ్నార్థకం", "?"],
+  ["ఆశ్చర్యార్థకం", "!"],
+  ["అల్పవిరామం", ","],
+  ["సెమికోలన్", ";"],
+  ["semicolon", ";"],
+  ["అర్థ బిందువు", ";"],
+  ["న్యూన బిందువు", ":"],
+  ["మూడు చుక్కలు", "..."],
+  ["హైఫన్", "-"],
+  ["హైఫన్", "-"],
+  ["hyphen", "-"],
+  ["కోలన్", ":"],
+  ["colon", ":"],
+  ["గుదము", ":"],
+  ["కామా", ","],
+  ["comma", ","],
+  ["శాతం", "%"],
+  ["సమానం", "="],
+  ["కూటకం", "+"],
+  ["కూటక", "+"],
+  ["తీసివేత", "-"],
+];
+const NUM = {
+  "౧౦": "౧౦", "10": "౧౦", "పది": "౧౦",
+  "౧": "౧", "1": "౧", "ఒకటి": "౧",
+  "౨": "౨", "2": "౨", "రెండు": "౨",
+  "౩": "౩", "3": "౩", "మూడు": "౩",
+  "౪": "౪", "4": "౪", "నాలుగు": "౪", "నాల్గు": "౪",
+  "౫": "౫", "5": "౫", "ఐదు": "౫",
+  "౬": "౬", "6": "౬", "ఆరు": "౬",
+  "౭": "౭", "7": "౭", "ఏడు": "౭",
+  "౮": "౮", "8": "౮", "ఎనిమిది": "౮",
+  "౯": "౯", "9": "౯", "తొమ్మిది": "౯",
+};
+
+const micBtn = document.getElementById("mic");
+const statusEl = document.getElementById("status");
+const interimEl = document.getElementById("interim");
+const finalEl = document.getElementById("final");
+const pathEl = document.getElementById("path");
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+pathEl.textContent = "డ్రాఫ్ట్: ఈ బ్రౌజర్ localStorage · Download .txt తో ఫైల్ తీసుకోండి.";
+
+const cmdList = document.getElementById("cmds");
+function showRepl(repl) {
+  if (repl === "\n") return "కొత్త వాక్యం";
+  if (repl === "\n\n") return "కొత్త పేరా";
+  return repl;
+}
+for (const [phrase, repl] of COMMANDS) {
+  const li = document.createElement("li");
+  li.innerHTML = "<code>" + phrase + "</code> → " + showRepl(repl);
+  cmdList.appendChild(li);
+}
+for (const key of ["౧", "౨", "౩", "౪", "౫", "౬", "౭", "౮", "౯", "౧౦"]) {
+  const li = document.createElement("li");
+  li.innerHTML = "<code>క్రమ సంఖ్య " + key + "</code> → " + key + ".";
+  cmdList.appendChild(li);
+}
+
+let saveTimer = 0;
+function publish() {
+  try {
+    localStorage.setItem(STORAGE_KEY, finalEl.value);
+  } catch (err) {
+    /* quota / private mode */
+  }
+}
+finalEl.addEventListener("input", () => {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(publish, 250);
+});
+
+function applyCommands(raw) {
+  let text = " " + raw.replace(/\s+/g, " ").trim() + " ";
+  const phrases = COMMANDS.slice().sort((a, b) => b[0].length - a[0].length);
+  for (const [phrase, repl] of phrases) {
+    const esc = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    text = text.replace(new RegExp(" " + esc + " ", "gi"), " " + repl + " ");
+  }
+  const numAlt = Object.keys(NUM).sort((a, b) => b.length - a.length).join("|");
+  text = text.replace(new RegExp(" క్రమ సంఖ్య (" + numAlt + ") ", "g"), (_, n) => {
+    return "\n" + (NUM[n] || n) + ". ";
+  });
+  return text
+    .replace(/[ \t]+([,.;:?!%])/g, "$1")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/^[ \t]+|[ \t]+$/g, "");
+}
+
+function appendFinal(piece) {
+  if (!piece) return;
+  let next = finalEl.value;
+  const stick = /^[,.;:?!%]/.test(piece);
+  if (next && !/\s$/.test(next) && !piece.startsWith("\n") && !stick) next += " ";
+  finalEl.value = next + piece;
+  finalEl.scrollTop = finalEl.scrollHeight;
+  publish();
+}
+
+let listening = false;
+let rec = null;
+
+function setStatus(text) { statusEl.textContent = text; }
+
+function arm() {
+  if (!SpeechRecognition) {
+    setStatus("ఈ విండో Chrome కాదు. Google Chrome లో తెరవండి.");
+    return;
+  }
+  if (!window.isSecureContext) {
+    setStatus("మైక్ కోసం HTTPS కావాలి (GitHub Pages లేదా localhost).");
+    return;
+  }
+  rec = new SpeechRecognition();
+  rec.lang = "te-IN";
+  rec.continuous = true;
+  rec.interimResults = true;
+  rec.maxAlternatives = 1;
+
+  rec.onstart = () => {
+    listening = true;
+    micBtn.classList.add("on");
+    setStatus("వింటున్నాను… తెలుగులో మాట్లాడండి.");
+  };
+
+  rec.onresult = (event) => {
+    let interim = "";
+    const finals = [];
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const said = event.results[i][0].transcript;
+      if (event.results[i].isFinal) finals.push(said);
+      else interim += said;
+    }
+    interimEl.textContent = interim || "…";
+    if (finals.length) {
+      interimEl.textContent = "";
+      appendFinal(applyCommands(finals.join(" ")));
+    }
+  };
+
+  rec.onerror = (ev) => {
+    if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
+      listening = false;
+      micBtn.classList.remove("on");
+      setStatus("మైక్ అనుమతి ఇవ్వండి, తర్వాత మళ్ళీ మైక్ నొక్కండి.");
+      return;
+    }
+    if (ev.error === "network") {
+      setStatus("ఇంటర్నెట్ కావాలి. Chrome వాయిస్‌ను గూగుల్‌కి పంపుతుంది.");
+    }
+  };
+
+  rec.onend = () => {
+    if (!listening) {
+      micBtn.classList.remove("on");
+      return;
+    }
+    setTimeout(() => {
+      if (!listening) return;
+      try { rec.start(); } catch (err) { /* already running */ }
+    }, 250);
+  };
+}
+
+function start() {
+  if (!rec) arm();
+  if (!rec) return;
+  listening = true;
+  try { rec.start(); }
+  catch (err) { /* InvalidStateError if already started */ }
+}
+
+function stop() {
+  listening = false;
+  micBtn.classList.remove("on");
+  setStatus("ఆగింది. మళ్ళీ మైక్ నొక్కండి.");
+  if (rec) {
+    try { rec.stop(); } catch (err) { /* already stopped */ }
+  }
+  publish();
+}
+
+micBtn.addEventListener("click", () => listening ? stop() : start());
+document.getElementById("stop").addEventListener("click", () => stop());
+document.getElementById("copy").addEventListener("click", async () => {
+  await navigator.clipboard.writeText(finalEl.value);
+  setStatus("కాపీ అయింది.");
+});
+document.getElementById("download").addEventListener("click", () => {
+  const blob = new Blob([finalEl.value], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+  a.href = url;
+  a.download = "telugu-transcript-" + stamp + ".txt";
+  a.click();
+  URL.revokeObjectURL(url);
+  setStatus("డౌన్‌లోడ్ మొదలైంది.");
+});
+document.getElementById("clear").addEventListener("click", () => {
+  if (finalEl.value && !window.confirm("Final text క్లియర్ చేయాలా?")) return;
+  finalEl.value = "";
+  interimEl.textContent = "";
+  publish();
+  setStatus("క్లియర్ అయింది.");
+});
+
+try {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) finalEl.value = saved;
+} catch (err) { /* ignore */ }
+
+arm();
+</script>
+</body>
+</html>
