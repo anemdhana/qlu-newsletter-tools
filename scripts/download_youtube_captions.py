@@ -349,6 +349,8 @@ def continuation_token(payload: Any) -> str | None:
 def title_from_runs(title_obj: Any) -> str | None:
   if not isinstance(title_obj, dict):
     return None
+  if isinstance(title_obj.get("content"), str):
+    return title_obj["content"]
   if isinstance(title_obj.get("simpleText"), str):
     return title_obj["simpleText"]
   runs = title_obj.get("runs")

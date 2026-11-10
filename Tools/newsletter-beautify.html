@@ -35,7 +35,7 @@
   <p class="crumb"><a href="./index.html">← Tools</a></p>
   <p class="brand">Quantum Life University</p>
   <h1>Beautify for newsletter</h1>
-  <p class="sub">Paste notes → copy prompt to ChatGPT → download the .md it creates (no need to copy from chat).</p>
+  <p class="sub">Paste notes → copy prompt to ChatGPT → download the .md it creates. Or use <strong>Copy prompt (v2)</strong> for transcript → full article master prompts.</p>
 
   <div class="grid">
     <div class="panel">
@@ -99,6 +99,19 @@
         <button type="button" class="primary" id="openGpt" disabled>Open ChatGPT</button>
         <p class="hint" id="actionHint">No API key — you run ChatGPT yourself.</p>
       </div>
+      <div id="v2PromptPanel" class="field" style="margin-top:0.65rem;padding-top:0.55rem;border-top:1px solid var(--line)">
+        <label for="v2PromptKind">Master prompts (v2) — transcript → detailed article</label>
+        <div class="row" style="margin-top:0.35rem">
+          <select id="v2PromptKind" style="flex:1 1 14rem;min-width:12rem" disabled>
+            <option value="single">Single transcript → one article</option>
+            <option value="batch">Batch ZIP → one article per day</option>
+          </select>
+          <button type="button" class="gold" id="copyPromptV2" disabled>Copy prompt (v2)</button>
+          <button type="button" id="downloadPromptV2" disabled>Download v2 .md</button>
+          <button type="button" class="primary" id="openGptV2" disabled>Open ChatGPT</button>
+        </div>
+        <p class="hint" id="v2Hint" style="margin:0.35rem 0 0">Available when section is “Summary of the themes covered in that month”.</p>
+      </div>
     </div>
 
     <div class="panel full">
@@ -118,6 +131,7 @@
   </details>
   <p class="note">Do not invent teachings — only polish the SOURCE (paste, attached .txt, or public URL). Follow Instruction for presentation only. This tool is for <strong>wording</strong> only.</p>
 </main>
+<script src="./prompts/v2-prompts.js"></script>
 <script>
 const SECTIONS = [
   { id: "themes", title: "Summary of the themes covered in that month", budget: "4–8 short bullets or mini-paragraphs; themes, not a day-by-day log." },
@@ -383,6 +397,7 @@ async function copyText(text, okMsg) {
 
 function onChange() {
   refreshPrompt();
+  refreshV2Availability();
   save();
 }
 
@@ -390,6 +405,108 @@ document.getElementById("clearSrc").addEventListener("click", () => {
   sourceEl.value = "";
   sourceUrlEl.value = "";
   onChange();
+});
+
+const v2KindEl = document.getElementById("v2PromptKind");
+const v2Hint = document.getElementById("v2Hint");
+const v2Panel = document.getElementById("v2PromptPanel");
+const copyPromptV2Btn = document.getElementById("copyPromptV2");
+const downloadPromptV2Btn = document.getElementById("downloadPromptV2");
+const openGptV2Btn = document.getElementById("openGptV2");
+
+function themesSectionSelected() {
+  return sectionEl.value === "themes";
+}
+
+function updateV2Hint() {
+  if (!themesSectionSelected()) {
+    v2Hint.textContent =
+      "Available when section is “Summary of the themes covered in that month”.";
+    return;
+  }
+  v2Hint.textContent =
+    v2KindEl.value === "batch"
+      ? "v2 batch: paste prompt in ChatGPT, then upload the transcripts ZIP."
+      : "v2 single: paste prompt in ChatGPT, then attach one transcript/captions .txt.";
+}
+
+function refreshV2Availability() {
+  const on = themesSectionSelected();
+  v2KindEl.disabled = !on;
+  copyPromptV2Btn.disabled = !on;
+  downloadPromptV2Btn.disabled = !on;
+  openGptV2Btn.disabled = !on;
+  v2Panel.style.opacity = on ? "" : "0.55";
+  updateV2Hint();
+}
+
+function currentV2Prompt() {
+  const pack = window.QLU_V2_PROMPTS || {};
+  const kind = v2KindEl.value === "batch" ? "batch" : "single";
+  return pack[kind] || null;
+}
+
+function showV2InBox(text) {
+  promptOut.value = text;
+  copyPromptBtn.disabled = !text;
+  downloadPromptBtn.disabled = !text;
+  openGptBtn.disabled = !text;
+}
+
+async function loadV2PromptText() {
+  if (!themesSectionSelected()) {
+    throw new Error('Select “Summary of the themes covered in that month” to use v2.');
+  }
+  const meta = currentV2Prompt();
+  if (!meta?.text) {
+    throw new Error("v2 prompts not loaded — check Tools/prompts/v2-prompts.js");
+  }
+  return meta;
+}
+
+v2KindEl.addEventListener("change", updateV2Hint);
+
+copyPromptV2Btn.addEventListener("click", async () => {
+  try {
+    const meta = await loadV2PromptText();
+    showV2InBox(meta.text.trim());
+    await copyText(meta.text.trim(), `Copied v2 · ${meta.label}. Paste in ChatGPT, then attach source.`);
+  } catch (e) {
+    statusEl.textContent = e instanceof Error ? e.message : "Could not load v2 prompt.";
+  }
+});
+
+downloadPromptV2Btn.addEventListener("click", async () => {
+  try {
+    const meta = await loadV2PromptText();
+    showV2InBox(meta.text.trim());
+    const blob = new Blob([meta.text.trim() + "\n"], { type: "text/markdown;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = meta.file;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    statusEl.textContent = `Downloaded ${meta.file}`;
+  } catch (e) {
+    statusEl.textContent = e instanceof Error ? e.message : "Could not download v2 prompt.";
+  }
+});
+
+openGptV2Btn.addEventListener("click", async () => {
+  try {
+    const meta = await loadV2PromptText();
+    showV2InBox(meta.text.trim());
+    await copyText(
+      meta.text.trim(),
+      v2KindEl.value === "batch"
+        ? "v2 copied — ChatGPT opening; paste, then upload the ZIP."
+        : "v2 copied — ChatGPT opening; paste, then attach the .txt."
+    );
+  } catch (e) {
+    statusEl.textContent = e instanceof Error ? e.message : "Could not load v2 prompt.";
+    return;
+  }
+  window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer");
 });
 
 copyPromptBtn.addEventListener("click", () => copyText(promptOut.value, "Prompt copied."));
@@ -461,6 +578,7 @@ document.getElementById("clearResult").addEventListener("click", () => {
 
 load();
 refreshPrompt();
+refreshV2Availability();
 </script>
 </body>
 </html>
