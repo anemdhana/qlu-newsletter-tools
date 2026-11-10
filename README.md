@@ -54,6 +54,17 @@ python scripts/extract_youtube_frame.py "https://youtu.be/VIDEO_ID" -t 90 -o out
 
 Optional env: `YT_DLP_PATH`, `FFMPEG_PATH`.
 
+### Import theme Read More → Payload CMS
+
+Reads revised `*-read-more.md` files (intro → blurb, Read More → fullStory) and appends Theme Items on an Issue.
+
+```powershell
+python scripts/import_theme_readmore.py --folder "C:\Users\dhana\Downloads\QLU_Ganesha_Days_535-538_Revised_ReadMore" --month 2026-11 --dry-run
+python scripts/import_theme_readmore.py --folder "C:\Users\dhana\Downloads\QLU_Ganesha_Days_535-538_Revised_ReadMore" --month 2026-11
+```
+
+CMS must be running (`http://localhost:3000`). Skips day numbers already present unless `--replace-existing`.
+
 ## Layout
 
 ```text
