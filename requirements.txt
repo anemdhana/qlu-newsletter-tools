@@ -17,8 +17,11 @@
 #     Or set FFMPEG_PATH / YT_DLP_PATH to custom executables.
 #
 # Optional CLI helpers (CMS / Astro must already be running):
-#   import_theme_readmore.py, export_section_pages.py, export_print_snapshot.py
-#   → stdlib only; need Payload on :3000 and/or Astro on :4321.
+#   import_theme_readmore.py          → local folder of .md (stdlib + Payload :3000)
+#   import_theme_readmore_gdrive.py   → shared Google Drive folder (needs gdown)
+#   export_section_pages.py / export_print_snapshot.py → Payload :3000 / Astro :4321
+# Drive folders must be shared as "Anyone with the link can view".
 
 yt-dlp>=2024.8.0
 imageio-ffmpeg>=0.5.1
+gdown>=5.2.0

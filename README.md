@@ -77,14 +77,23 @@ Optional env: `YT_DLP_PATH`, `FFMPEG_PATH`.
 
 ### Import theme Read More → Payload CMS
 
-Reads revised `*-read-more.md` files (intro → blurb, Read More → fullStory) and appends Theme Items on an Issue.
+Reads Telugu theme `.md` files (legacy Newsletter/Read More **or** v2 lecture editions) and appends Theme Items. **Skips day numbers already present** unless `--replace-existing`.
 
 ```powershell
 python scripts/import_theme_readmore.py --folder "C:\Users\dhana\Downloads\QLU_Ganesha_Days_535-538_Revised_ReadMore" --month 2026-11 --dry-run
 python scripts/import_theme_readmore.py --folder "C:\Users\dhana\Downloads\QLU_Ganesha_Days_535-538_Revised_ReadMore" --month 2026-11
 ```
 
-CMS must be running (`http://localhost:3000`). Skips day numbers already present unless `--replace-existing`.
+#### From a shared Google Drive folder
+
+```powershell
+python scripts/import_theme_readmore_gdrive.py --dry-run
+python scripts/import_theme_readmore_gdrive.py --month 2026-11 --heading-needle "దేవీ నవరాత్రి" --create-section --set-heading "దేవీ నవరాత్రుల జ్ఞానం"
+```
+
+Default folder: [Devi Navratri Drive folder](https://drive.google.com/drive/folders/1lWK1kKW5eb1Zy3ZOfxjKJYWTMC4-cQLX) (must be shared “Anyone with the link”). Downloads into `out/gdrive-theme-import/`, picks the best Telugu file per day, skips English, skips days already on the Issue.
+
+CMS must be running (`http://localhost:3000`).
 
 ### Export section → static GitHub Pages (`docs/`)
 
@@ -121,6 +130,7 @@ qlu-newsletter-tools/
     download_youtube_captions.py
     extract_youtube_frame.py
     import_theme_readmore.py
+    import_theme_readmore_gdrive.py
     export_section_pages.py
     export_print_snapshot.py
   out/
