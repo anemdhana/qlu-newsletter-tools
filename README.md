@@ -8,6 +8,27 @@ Companion to:
 - [`quantum-life-university-news`](../quantum-life-university-news) — Payload + Astro magazine
 - [`qlu-monthly-newsletter`](../qlu-monthly-newsletter) — WordPress magazine sibling
 
+## Setup for a new developer
+
+1. **Python 3.10+** — [python.org/downloads](https://www.python.org/downloads/)  
+   On Windows, check **Add python.exe to PATH**.
+2. Install packages (includes **yt-dlp** + a bundled **ffmpeg** for frame extract):
+
+```powershell
+cd c:\Users\dhana\GitHub\qlu-newsletter-tools
+python -m pip install -r requirements.txt
+```
+
+3. Start the hub: `.\start.cmd` (also runs `pip install -r requirements.txt` if needed).
+
+| Need | Covered by |
+|------|------------|
+| Captions (default) | Python stdlib only |
+| Captions (yt-dlp engine) | `yt-dlp` in requirements.txt |
+| Extract frame | `yt-dlp` + `imageio-ffmpeg` (bundled ffmpeg) |
+| System ffmpeg (optional) | `winget install Gyan.FFmpeg` or `FFMPEG_PATH` |
+| Theme import / static export CLI | Stdlib; Payload `:3000` and/or Astro `:4321` running |
+
 ## Start the Tools UI (recommended)
 
 Captions + frame extract need a **local Python server** (browser pages cannot run `.py` as `file://`).
@@ -27,7 +48,7 @@ Starts the server and opens **http://127.0.0.1:8765/Tools/index.html** so you ca
 Also in the hub (browser-only): Telugu speech→text, newsletter beautify.
 
 ```powershell
-# or
+# or (after pip install -r requirements.txt)
 python serve.py
 ```
 
@@ -45,7 +66,7 @@ python scripts/download_youtube_captions.py VIDEO_ID --lang te --engine yt-dlp
 
 ### Extract frame at time (same as app Tools)
 
-Needs **ffmpeg** on PATH (+ **yt-dlp**, auto-pip if missing).
+Needs **yt-dlp** + **ffmpeg**. After `pip install -r requirements.txt`, ffmpeg comes from **imageio-ffmpeg** (no separate install). Falls back to system `ffmpeg` / `FFMPEG_PATH` when present.
 
 ```powershell
 python scripts/extract_youtube_frame.py VIDEO_ID --time 00:01:30
@@ -107,8 +128,12 @@ qlu-newsletter-tools/
 
 ## Requirements
 
-```text
-# optional (yt-dlp engine / frame extract)
-pip install -r requirements.txt
-# ffmpeg separately, e.g. winget install Gyan.FFmpeg
+```powershell
+python -m pip install -r requirements.txt
+# installs yt-dlp + imageio-ffmpeg (bundled ffmpeg for Extract frame)
+
+# optional system ffmpeg instead of / in addition to the bundle:
+# winget install Gyan.FFmpeg
 ```
+
+See comments in [`requirements.txt`](requirements.txt) for the full new-developer checklist.

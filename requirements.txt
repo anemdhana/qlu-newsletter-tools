@@ -1,3 +1,24 @@
-# Optional — only needed for: --engine yt-dlp
-# Default caption download uses Python stdlib only.
+# qlu-newsletter-tools — Python packages
+# --------------------------------------
+# New developer setup (Windows):
+#   1. Install Python 3.10+ from https://www.python.org/downloads/
+#      (check "Add python.exe to PATH")
+#   2. From this folder:
+#        python -m pip install -r requirements.txt
+#   3. Start UI:
+#        .\start.cmd
+#
+# System notes (not installable via pip alone):
+#   • Captions (default Innertube engine) → stdlib only; no extra packages.
+#   • Captions (--engine yt-dlp) / Extract frame → need packages below.
+#   • Extract frame needs an ffmpeg binary. Prefer the imageio-ffmpeg bundle
+#     (installed by this file). Optional system install:
+#        winget install Gyan.FFmpeg
+#     Or set FFMPEG_PATH / YT_DLP_PATH to custom executables.
+#
+# Optional CLI helpers (CMS / Astro must already be running):
+#   import_theme_readmore.py, export_section_pages.py, export_print_snapshot.py
+#   → stdlib only; need Payload on :3000 and/or Astro on :4321.
+
 yt-dlp>=2024.8.0
+imageio-ffmpeg>=0.5.1

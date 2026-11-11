@@ -12,7 +12,7 @@ echo  Outputs: %~dp0out
 echo.
 echo  Test from the hub:
 echo    1. Download YouTube captions
-echo    2. Extract frame at time
+echo    2. Extract frame at time  ^(needs ffmpeg via requirements.txt^)
 echo    3. Telugu speech to text
 echo    4. Beautify text / newsletter
 echo.
@@ -21,9 +21,31 @@ echo.
 
 where python >nul 2>&1
 if errorlevel 1 (
-  echo Python not found on PATH. Install Python 3.10+ and try again.
+  echo Python not found on PATH.
+  echo Install Python 3.10+ from https://www.python.org/downloads/
+  echo and check "Add python.exe to PATH", then re-open this window.
   pause
   exit /b 1
+)
+
+echo Checking Python packages ^(yt-dlp, imageio-ffmpeg^)...
+python -m pip install -r "%~dp0requirements.txt" -q
+if errorlevel 1 (
+  echo.
+  echo pip install failed. Try manually:
+  echo   python -m pip install -r requirements.txt
+  pause
+  exit /b 1
+)
+
+python -c "from imageio_ffmpeg import get_ffmpeg_exe; p=get_ffmpeg_exe(); print('  ffmpeg OK:', p)" 2>nul
+if errorlevel 1 (
+  echo.
+  echo WARNING: bundled ffmpeg not available.
+  echo   python -m pip install -r requirements.txt
+  echo   or: winget install Gyan.FFmpeg
+  echo Captions still work; Extract frame will fail until ffmpeg is fixed.
+  echo.
 )
 
 REM Open index after a short delay while the server starts

@@ -5,8 +5,9 @@ Extract one still frame from a YouTube video at a timestamp.
 Same idea as quantum-life-university lib/tools/youtubeFrame.ts
 (and Tools → Extract frame at time).
 
-Requires: yt-dlp (auto-pip if missing) + ffmpeg on PATH
-  (or YT_DLP_PATH / FFMPEG_PATH env vars).
+Requires: yt-dlp + ffmpeg.
+  pip install -r requirements.txt  → yt-dlp + imageio-ffmpeg (bundled ffmpeg).
+  Optional: system ffmpeg on PATH, or YT_DLP_PATH / FFMPEG_PATH.
 
 Examples:
   python scripts/extract_youtube_frame.py VIDEO_ID --time 00:01:30
@@ -133,7 +134,10 @@ def _can_run(cmd: list[str], probe_args: list[str]) -> bool:
 
 
 def resolve_ffmpeg() -> str:
-  """Return a working ffmpeg executable path."""
+  """Return a working ffmpeg executable path.
+
+  Order: FFMPEG_PATH → PATH → imageio-ffmpeg bundle (from requirements.txt).
+  """
   from_env = (os.environ.get("FFMPEG_PATH") or "").strip()
   candidates: list[str] = []
   if from_env:
@@ -142,13 +146,26 @@ def resolve_ffmpeg() -> str:
     found = shutil.which(name)
     if found:
       candidates.append(found)
+
+  # Bundled binary from: pip install imageio-ffmpeg
+  try:
+    from imageio_ffmpeg import get_ffmpeg_exe  # type: ignore
+
+    bundled = get_ffmpeg_exe()
+    if bundled:
+      candidates.append(bundled)
+  except Exception:
+    pass
+
   for path in candidates:
     if _can_run([path], ["-version"]):
       return path
+
   raise RuntimeError(
-    "ffmpeg not found (or not a valid Windows binary). "
-    "Install it and ensure it is on PATH, or set FFMPEG_PATH to ffmpeg.exe. "
-    "Example: winget install Gyan.FFmpeg"
+    "ffmpeg not found. Frame extract needs ffmpeg.\n"
+    "  1) pip install -r requirements.txt   (includes imageio-ffmpeg bundle)\n"
+    "  2) or install system ffmpeg: winget install Gyan.FFmpeg\n"
+    "  3) or set FFMPEG_PATH to ffmpeg.exe"
   )
 
 
