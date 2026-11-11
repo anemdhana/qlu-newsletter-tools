@@ -474,8 +474,11 @@ def fetch_playlist_videos(playlist_id: str, preferred: Lang = "te", max_videos: 
   return videos
 
 
-def safe_title_slug(title: str, max_len: int = 80) -> str:
-  """Filesystem-safe slug that keeps the real title (Telugu marks included)."""
+def safe_title_slug(title: str, max_len: int = 100) -> str:
+  """Filesystem-safe slug that keeps the real title (Telugu marks included).
+
+  When truncating, preserve a trailing Day-NNN so episode numbers are not lost.
+  """
   slug = (title or "").strip()
   # Drop only Windows/path-forbidden chars; keep letters, marks, punctuation lightly
   slug = re.sub(r'[\\/:*?"<>|]+', "", slug)
@@ -483,7 +486,16 @@ def safe_title_slug(title: str, max_len: int = 80) -> str:
   slug = re.sub(r"[^\S\r\n]+", "-", slug)  # any leftover odd whitespace
   slug = re.sub(r"-{2,}", "-", slug).strip(".- ")
   if len(slug) > max_len:
-    slug = slug[:max_len].rstrip("-.")
+    day_m = re.search(r"(?i)(-Day-\d+)$", slug)
+    if day_m:
+      suffix = day_m.group(1)
+      head_len = max_len - len(suffix)
+      if head_len >= 12:
+        slug = slug[:head_len].rstrip("-.") + suffix
+      else:
+        slug = slug[:max_len].rstrip("-.")
+    else:
+      slug = slug[:max_len].rstrip("-.")
   return slug or "video"
 
 

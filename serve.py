@@ -132,8 +132,9 @@ def run_extract_frame(payload: dict) -> dict:
   from extract_youtube_frame import (
     extract_frame,
     extract_youtube_id,
-    format_hms_label,
+    fetch_video_title,
     parse_timestamp,
+    safe_frame_filename,
   )
 
   video = (payload.get("video") or "").strip()
@@ -149,7 +150,8 @@ def run_extract_frame(payload: dict) -> dict:
   if not (seconds == seconds) or seconds < 0:
     raise ValueError("Enter a valid time (e.g. 00:01:30 or 90).")
   fmt = "png" if fmt == "png" else "jpg"
-  filename = f"yt_{vid}_{format_hms_label(seconds)}.{fmt}"
+  title = fetch_video_title(vid)
+  filename = safe_frame_filename(vid, title, seconds, fmt)
   OUT.mkdir(parents=True, exist_ok=True)
   dest = OUT / filename
   try:
@@ -161,6 +163,7 @@ def run_extract_frame(payload: dict) -> dict:
     "ok": True,
     "downloadUrl": f"/download/{urllib.parse.quote(filename)}",
     "filename": filename,
+    "title": title,
     "message": f"Frame saved: {filename}",
   }
 
@@ -191,7 +194,15 @@ class Handler(BaseHTTPRequestHandler):
     self.send_header("Content-Type", content_type)
     self.send_header("Content-Length", str(len(data)))
     if filename:
-      self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+      # HTTP headers are latin-1; use ASCII fallback + RFC 5987 UTF-8 filename*
+      ascii_name = filename.encode("ascii", "ignore").decode("ascii").strip(" .-_") or "download"
+      if not Path(ascii_name).suffix and Path(filename).suffix:
+        ascii_name += Path(filename).suffix
+      starred = urllib.parse.quote(filename, safe="")
+      self.send_header(
+        "Content-Disposition",
+        f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{starred}",
+      )
     self.end_headers()
     self.wfile.write(data)
 

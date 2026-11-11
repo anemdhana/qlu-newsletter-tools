@@ -60,6 +60,69 @@ def format_hms_label(seconds: float) -> str:
   return f"{h:02d}h{m:02d}m{s:02d}s"
 
 
+def safe_title_slug(title: str, max_len: int = 100) -> str:
+  """Filesystem-safe slug; keep trailing Day-NNN when truncating (same as captions)."""
+  try:
+    from download_youtube_captions import safe_title_slug as _slug
+
+    return _slug(title, max_len)
+  except Exception:
+    pass
+  slug = (title or "").strip()
+  slug = re.sub(r'[\\/:*?"<>|]+', "", slug)
+  slug = re.sub(r"\s+", "-", slug)
+  slug = re.sub(r"-{2,}", "-", slug).strip(".- ")
+  if len(slug) > max_len:
+    day_m = re.search(r"(?i)(-Day-\d+)$", slug)
+    if day_m:
+      suffix = day_m.group(1)
+      head_len = max_len - len(suffix)
+      if head_len >= 12:
+        slug = slug[:head_len].rstrip("-.") + suffix
+      else:
+        slug = slug[:max_len].rstrip("-.")
+    else:
+      slug = slug[:max_len].rstrip("-.")
+  return slug or "video"
+
+
+def safe_frame_filename(video_id: str, title: str, seconds: float, fmt: str) -> str:
+  """{actual-title}[{videoId}]_00h59m51s.jpg — same idea as caption naming."""
+  label = safe_title_slug(title)
+  ext = "png" if fmt == "png" else "jpg"
+  return f"{label}[{video_id}]_{format_hms_label(seconds)}.{ext}"
+
+
+def fetch_video_title(video_id: str, yt_dlp_cmd: list[str] | None = None) -> str:
+  """Prefer Innertube (same as captions); fall back to yt-dlp --print title."""
+  try:
+    from download_youtube_captions import fetch_video_title as innertube_title
+
+    title = innertube_title(video_id)
+    if title and title != video_id:
+      return title
+  except Exception:
+    pass
+
+  cmd = yt_dlp_cmd or ensure_yt_dlp_cmd()
+  result = run(
+    [
+      *cmd,
+      "--skip-download",
+      "--no-warnings",
+      "--print",
+      "%(title)s",
+      f"https://www.youtube.com/watch?v={video_id}",
+    ],
+    timeout=60,
+  )
+  if result.returncode == 0:
+    lines = [ln.strip() for ln in (result.stdout or "").splitlines() if ln.strip()]
+    if lines:
+      return lines[0]
+  return video_id
+
+
 def _can_run(cmd: list[str], probe_args: list[str]) -> bool:
   try:
     r = subprocess.run(cmd + probe_args, capture_output=True, timeout=15)
@@ -124,7 +187,15 @@ def ensure_yt_dlp_cmd() -> list[str]:
 
 def run(cmd: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
   try:
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    # UTF-8: yt-dlp titles/errors often include Telugu; default cp1252 crashes on Windows.
+    return subprocess.run(
+      cmd,
+      capture_output=True,
+      text=True,
+      encoding="utf-8",
+      errors="replace",
+      timeout=timeout,
+    )
   except OSError as e:
     raise RuntimeError(
       f"Failed to start command ({e}). "
@@ -171,7 +242,11 @@ def extract_frame(video_input: str, time: str, fmt: str, out: Path | None) -> Pa
   watch_url = f"https://www.youtube.com/watch?v={video_id}"
   stream_url = youtube_stream_url(watch_url, yt_dlp_cmd)
 
-  dest = out or Path(f"yt_{video_id}_{format_hms_label(seconds)}.{fmt}")
+  if out is None:
+    title = fetch_video_title(video_id, yt_dlp_cmd)
+    dest = Path(safe_frame_filename(video_id, title, seconds, fmt))
+  else:
+    dest = out
   dest.parent.mkdir(parents=True, exist_ok=True)
 
   with tempfile.TemporaryDirectory(prefix="qlu-yt-frame-") as work:
