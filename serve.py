@@ -48,9 +48,11 @@ def run_captions(payload: dict) -> dict:
     captions_as_text,
     download_playlist,
     fetch_captions_yt_dlp,
+    fetch_video_title,
     fetch_youtube_captions,
     parse_playlist_id,
     parse_youtube_id,
+    safe_caption_filename,
   )
 
   lang = payload.get("lang") or "auto"
@@ -95,12 +97,20 @@ def run_captions(payload: dict) -> dict:
     if not video_id:
       raise ValueError("Enter a YouTube video ID or URL.")
 
+    title = fetch_video_title(video_id)
     if engine == "yt-dlp":
       cues, used_lang = fetch_captions_yt_dlp(video_id, lang, ROOT / ".yt-dlp-cache" / video_id)
     else:
       cues, used_lang = fetch_youtube_captions(video_id, lang)
     text = captions_as_text(cues)
-    filename = f"{video_id}-{used_lang}-captions.txt"
+    if title and title != video_id:
+      text = (
+        f"# {title}\n"
+        f"# https://www.youtube.com/watch?v={video_id}\n"
+        f"# language={used_lang}\n\n"
+        f"{text}"
+      )
+    filename = safe_caption_filename(None, video_id, title, used_lang)
     dest = OUT / filename
     dest.write_text(text, encoding="utf-8", newline="\n")
     return {
@@ -108,10 +118,11 @@ def run_captions(payload: dict) -> dict:
       "kind": "video",
       "downloadUrl": f"/download/{urllib.parse.quote(filename)}",
       "filename": filename,
+      "title": title,
       "cueCount": len(cues),
       "language": used_lang,
       "preview": "\n".join(text.splitlines()[:12]),
-      "message": f"Downloaded {len(cues)} caption lines ({used_lang}).",
+      "message": f"Downloaded {len(cues)} caption lines ({used_lang}) · {filename}",
     }
   except SystemExit as e:
     raise ValueError(str(e) if e.args else "Caption download failed.") from e

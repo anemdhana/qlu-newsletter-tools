@@ -38,6 +38,11 @@ DEFAULT_FOLDER = (
 DEFAULT_HEADING_NEEDLE = "శ్రీ గణేశ తత్త్వం"
 DAY_RE = re.compile(r"(\d+)\s*వ\s*రోజు")
 FILE_DAY_RE = re.compile(r"day[-_]?(\d+)", re.I)
+EN_DAY_RE = re.compile(r"\bDay\s+(\d+)\b", re.I)
+SPEAK_PEACE_RE = re.compile(
+  r"Speak Peace\s*[-–—]\s*(.+?)\s+by\s+.+?\s*[-–—]?\s*Day\s+(\d+)\s*$",
+  re.I,
+)
 
 
 def http_json(
@@ -118,12 +123,30 @@ def meta_value(md: str, label: str) -> str:
 def normalize_title(title: str) -> str:
   # Match existing CMS style: జ్ఞానోదయం – NNNవ రోజు |
   title = title.strip().lstrip("#").strip()
+  sp = SPEAK_PEACE_RE.search(title)
+  if sp:
+    topic = sp.group(1).strip().rstrip("-–— ").strip()
+    day = sp.group(2)
+    return f"జ్ఞానోదయం – {day}వ రోజు | Speak Peace — {topic}"
   title = re.sub(r"^(జ్ఞానోదయం)\s*[—–-]\s*", r"\1 – ", title, count=1)
+  # English "… Day NNN" → Telugu day form when not already normalized
+  if "వ రోజు" not in title:
+    en = EN_DAY_RE.search(title)
+    if en and title.lower().startswith("జ్ఞానోదయం"):
+      day = en.group(1)
+      rest = EN_DAY_RE.sub("", title).strip(" -–—|")
+      rest = re.sub(r"^జ్ఞానోదయం\s*(on\s+)?", "", rest, flags=re.I).strip(" -–—")
+      if rest:
+        return f"జ్ఞానోదయం – {day}వ రోజు | {rest}"
+      return f"జ్ఞానోదయం – {day}వ రోజు"
   return title
 
 
 def day_from_title(title: str) -> int | None:
   m = DAY_RE.search(title)
+  if m:
+    return int(m.group(1))
+  m = EN_DAY_RE.search(title)
   return int(m.group(1)) if m else None
 
 
@@ -151,6 +174,7 @@ def parse_readmore_md(path: Path) -> dict:
   )
   series = meta_value(md, "శ్రేణి")
   topic_meta = meta_value(md, "అంశం")
+  day_meta = meta_value(md, "Day / Session") or meta_value(md, "Day")
 
   blurb = section_after(md, r"^##\s*Newsletter\s*కోసం\s*పరిచయం\s*$")
   if not blurb:
@@ -158,6 +182,13 @@ def parse_readmore_md(path: Path) -> dict:
   # drop horizontal rules left in intro
   blurb = re.sub(r"^---+\s*", "", blurb).strip()
   blurb = re.sub(r"\s*---+\s*$", "", blurb).strip()
+  # drop auto-caption editorial disclaimer from short blurb
+  blurb = re.sub(
+    r"\s*ఇది మూల ఆటోమేటిక్ క్యాప్షన్ల ఆధారంగా రూపొందించిన సంక్షిప్త సంపాదకీయ ముసాయిదా;?\s*"
+    r"పూర్తి వీడియోతో తుది నిర్ధారణ ఇంకా అవసరం\.?\s*",
+    " ",
+    blurb,
+  ).strip()
 
   read_more = ""
   rm = re.search(
@@ -201,6 +232,10 @@ def parse_readmore_md(path: Path) -> dict:
     full_story = (full_story + "\n\n" + read_more).strip() if full_story else read_more
 
   day = day_from_title(title) or day_from_filename(path)
+  if day is None and day_meta:
+    m = re.search(r"(\d+)", day_meta)
+    if m:
+      day = int(m.group(1))
   if not blurb:
     raise ValueError(f"{path.name}: missing Newsletter పరిచయం section")
   if not full_story:
@@ -212,7 +247,8 @@ def parse_readmore_md(path: Path) -> dict:
     "titleTe": title,
     "blurbTe": blurb,
     "fullStoryTe": full_story,
-    "storyUrl": video or None,
+    "storyUrl": None,  # keep full story in-site; video is in the story body header
+    "video": video or None,
   }
 
 
@@ -226,23 +262,53 @@ def existing_days(theme_items: list) -> set[int]:
   return found
 
 
-def find_themes_section(sections: list, heading_needle: str) -> tuple[int, dict]:
+def find_themes_section(
+  sections: list,
+  heading_needle: str,
+  *,
+  create_section: bool = False,
+  set_heading: str | None = None,
+) -> tuple[int, dict, bool]:
+  """Return (index, section, created)."""
   themes = [(i, s) for i, s in enumerate(sections) if s.get("key") == "themes"]
-  if not themes:
-    raise SystemExit("Issue has no themes section")
   needle = (heading_needle or "").strip()
   if needle:
     for i, s in themes:
       heading = f"{s.get('headingTe') or ''} {s.get('headingEn') or ''}"
       if needle in heading:
-        return i, s
+        return i, s, False
+    if create_section:
+      heading = (set_heading or needle).strip()
+      new_sec = {
+        "key": "themes",
+        "headingTe": heading,
+        "headingEn": heading,
+        "asCard": True,
+        "themeItems": [],
+      }
+      sections.append(new_sec)
+      return len(sections) - 1, new_sec, True
     raise SystemExit(
       f"No themes section heading contains {needle!r}. "
-      f"Found: {[s.get('headingTe') for _, s in themes]!r}"
+      f"Found: {[s.get('headingTe') for _, s in themes]!r}. "
+      f"Pass --create-section to add one."
     )
+  if not themes:
+    if create_section:
+      heading = (set_heading or "Themes").strip()
+      new_sec = {
+        "key": "themes",
+        "headingTe": heading,
+        "headingEn": heading,
+        "asCard": True,
+        "themeItems": [],
+      }
+      sections.append(new_sec)
+      return len(sections) - 1, new_sec, True
+    raise SystemExit("Issue has no themes section")
   if len(themes) > 1:
     raise SystemExit("Multiple themes sections — pass --heading-needle")
-  return themes[0]
+  return themes[0][0], themes[0][1], False
 
 
 def main() -> int:
@@ -258,6 +324,16 @@ def main() -> int:
     default=DEFAULT_HEADING_NEEDLE,
     help="Match themes section heading (substring)",
   )
+  ap.add_argument(
+    "--set-heading",
+    default="",
+    help="Set/create themes headingTe (e.g. series title)",
+  )
+  ap.add_argument(
+    "--create-section",
+    action="store_true",
+    help="Create a new themes section when heading-needle is not found",
+  )
   ap.add_argument("--base-url", default=os.environ.get("PAYLOAD_URL", "http://localhost:3000"))
   ap.add_argument("--email", default=os.environ.get("SEED_ADMIN_EMAIL", "admin@qlu.local"))
   ap.add_argument(
@@ -272,7 +348,10 @@ def main() -> int:
   if source.is_file() and source.suffix.lower() == ".md":
     files = [source]
   elif source.is_dir():
-    files = sorted(source.glob("*.md"))
+    # Prefer article files; skip manifests / editorial notes
+    files = sorted(source.glob("jnanodayam*.md")) or sorted(
+      p for p in source.glob("*.md") if p.name.upper() not in {"MANIFEST.MD", "EDITORIAL_QA.MD"}
+    )
   else:
     raise SystemExit(f"Not a folder or .md file: {source}")
 
@@ -293,12 +372,19 @@ def main() -> int:
   issue = find_issue(base, args.month, token)
   issue_id = issue["id"]
   sections = list(issue.get("sections") or [])
-  idx, themes = find_themes_section(sections, args.heading_needle)
+  idx, themes, created = find_themes_section(
+    sections,
+    args.heading_needle,
+    create_section=args.create_section,
+    set_heading=args.set_heading or None,
+  )
+  if args.set_heading.strip():
+    themes = {**themes, "headingTe": args.set_heading.strip(), "asCard": True}
   items = list(themes.get("themeItems") or [])
   have = existing_days(items)
 
   print(f"Issue id={issue_id} month={args.month}")
-  print(f"Themes heading: {themes.get('headingTe')}")
+  print(f"Themes heading: {themes.get('headingTe')}{' (new section)' if created else ''}")
   print(f"Existing theme items: {len(items)} (days {sorted(have) or '—'})")
 
   to_add: list[dict] = []
@@ -307,18 +393,17 @@ def main() -> int:
   for row in parsed:
     day = row["day"]
     label = f"day {day} · {row['file']}"
+    # Put speaker + video into full story header (parser already did); keep storyUrl empty
     payload_item = {
       "titleTe": row["titleTe"],
       "blurbTe": row["blurbTe"],
       "fullStoryTe": row["fullStoryTe"],
-      # Prefer in-site full story; keep URL empty like existing rows
       "storyUrl": None,
     }
     if day is not None and day in have:
       if args.replace_existing:
         for i, it in enumerate(items):
           if day_from_title(it.get("titleTe") or "") == day:
-            # Keep Payload row id when replacing in place
             if it.get("id"):
               payload_item = {**payload_item, "id": it["id"]}
             items[i] = payload_item
@@ -343,19 +428,19 @@ def main() -> int:
   for s in skipped:
     print(f"  skip {s}")
 
-  if not to_add and not replaced:
+  if not to_add and not replaced and not created and not args.set_heading.strip():
     print("Nothing to import.")
     return 0
 
   new_items = items + to_add
   themes = {**themes, "themeItems": new_items}
-  # Drop UI-only fields Payload may echo
   themes.pop("themeItemsNav", None)
   sections[idx] = themes
 
   if args.dry_run:
     print(
-      f"Dry run — would add {len(to_add)}, replace {replaced}; "
+      f"Dry run — would add {len(to_add)}, replace {replaced}"
+      f"{', create section' if created else ''}; "
       f"total themeItems → {len(new_items)}"
     )
     return 0
@@ -369,14 +454,15 @@ def main() -> int:
   )
   doc = updated.get("doc") or updated
   themes_after = None
+  needle = (args.heading_needle or args.set_heading or "").strip()
   for s in doc.get("sections") or []:
-    if s.get("key") == "themes" and (
-      not args.heading_needle or args.heading_needle in (s.get("headingTe") or "")
-    ):
+    if s.get("key") != "themes":
+      continue
+    if not needle or needle in (s.get("headingTe") or "") or needle in (s.get("headingEn") or ""):
       themes_after = s
       break
   count = len((themes_after or {}).get("themeItems") or [])
-  print(f"Done. Themes now has {count} theme item(s).")
+  print(f"Done. Themes now has {count} theme item(s). Heading: {(themes_after or {}).get('headingTe')}")
   return 0
 
 

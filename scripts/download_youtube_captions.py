@@ -22,7 +22,6 @@ import re
 import subprocess
 import sys
 import time
-import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -475,14 +474,42 @@ def fetch_playlist_videos(playlist_id: str, preferred: Lang = "te", max_videos: 
   return videos
 
 
-def safe_caption_filename(index: int, video_id: str, title: str, language: str) -> str:
-  order = f"{index:02d}"
-  slug = unicodedata.normalize("NFKD", title)
-  slug = "".join(c for c in slug if not unicodedata.combining(c))
-  slug = re.sub(r"[^\w\s-]+", "", slug, flags=re.UNICODE)
-  slug = re.sub(r"\s+", "-", slug.strip())[:40].strip("-").lower()
-  label = slug or "video"
-  return f"{order}-{video_id}-{label}-{language}-captions.txt"
+def safe_title_slug(title: str, max_len: int = 80) -> str:
+  """Filesystem-safe slug that keeps the real title (Telugu marks included)."""
+  slug = (title or "").strip()
+  # Drop only Windows/path-forbidden chars; keep letters, marks, punctuation lightly
+  slug = re.sub(r'[\\/:*?"<>|]+', "", slug)
+  slug = re.sub(r"\s+", "-", slug)
+  slug = re.sub(r"[^\S\r\n]+", "-", slug)  # any leftover odd whitespace
+  slug = re.sub(r"-{2,}", "-", slug).strip(".- ")
+  if len(slug) > max_len:
+    slug = slug[:max_len].rstrip("-.")
+  return slug or "video"
+
+
+def safe_caption_filename(
+  index: int | None,
+  video_id: str,
+  title: str,
+  language: str,
+) -> str:
+  """Name: [NN-]{actual-title}-{lang}-captions[{videoId}].txt"""
+  label = safe_title_slug(title)
+  prefix = f"{index:02d}-" if index is not None else ""
+  return f"{prefix}{label}-{language}-captions[{video_id}].txt"
+
+
+def fetch_video_title(video_id: str) -> str:
+  try:
+    player = fetch_player(video_id, "auto")
+    details = player.get("videoDetails") if isinstance(player, dict) else None
+    if isinstance(details, dict):
+      title = details.get("title")
+      if isinstance(title, str) and title.strip():
+        return title.strip()
+  except Exception:
+    pass
+  return video_id
 
 
 # —— Optional yt-dlp engine ——
@@ -608,14 +635,25 @@ def download_one(video_input: str, lang: Lang, engine: str, out: Path | None) ->
   video_id = parse_youtube_id(video_input)
   if not video_id:
     raise SystemExit("Enter a YouTube video ID or URL.")
+  title = fetch_video_title(video_id)
   if engine == "yt-dlp":
     cues, used_lang = fetch_captions_yt_dlp(video_id, lang, Path(".yt-dlp-cache") / video_id)
   else:
     cues, used_lang = fetch_youtube_captions(video_id, lang)
   text = captions_as_text(cues)
-  dest = out or Path(f"{video_id}-{used_lang}-captions.txt")
+  if out is None:
+    name = safe_caption_filename(None, video_id, title, used_lang)
+    dest = Path(name)
+  else:
+    dest = out
+  # Prefer a titled header when saving default-named files
+  if out is None and title and title != video_id:
+    text = f"# {title}\n# https://www.youtube.com/watch?v={video_id}\n# language={used_lang}\n\n{text}"
   write_text(dest, text)
-  print(f"OK: {len(cues)} cue lines · language={used_lang} (requested={lang}) · engine={engine}")
+  print(
+    f"OK: {len(cues)} cue lines · language={used_lang} (requested={lang}) · "
+    f"engine={engine} · {dest.name}"
+  )
   return dest
 
 
