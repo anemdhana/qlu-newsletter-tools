@@ -65,6 +65,29 @@ python scripts/import_theme_readmore.py --folder "C:\Users\dhana\Downloads\QLU_G
 
 CMS must be running (`http://localhost:3000`). Skips day numbers already present unless `--replace-existing`.
 
+### Export section → static GitHub Pages (`docs/`)
+
+Pulls one Issue section from Payload and writes TE + EN HTML under `docs/issues/{month}/…` (catalog at `docs/index.html`).
+
+```powershell
+python scripts/export_section_pages.py --month 2026-11 --section themes
+python scripts/export_section_pages.py --month 2026-11 --section all
+```
+
+Section keys: `themes`, `highlight-classes`, `experiences`, `visits`, `vanya`, `campus`, `upcoming`, or **`all`**.
+
+### Snapshot Astro Print (exact look)
+
+Copies the live Print view HTML, `qlu.css`, logos/media images, and story pages into `docs/` (same look as `http://localhost:4321/issues/{month}/te/?view=print`).
+
+```powershell
+# Astro (4321) + CMS (3000) must be running
+python scripts/export_print_snapshot.py --month 2026-11
+python scripts/export_print_snapshot.py --month 2026-11 --lang te
+```
+
+Open `docs/issues/2026-11/te/index.html`. Enable **GitHub Pages**: Settings → Pages → Deploy from branch → `master` (or `main`) → folder **`/docs`**.
+
 ## Layout
 
 ```text
@@ -72,9 +95,13 @@ qlu-newsletter-tools/
   README.md
   requirements.txt
   Tools/                         # static HTML hub (from QLU Tools/)
+  docs/                          # GitHub Pages magazine exports
   scripts/
     download_youtube_captions.py
     extract_youtube_frame.py
+    import_theme_readmore.py
+    export_section_pages.py
+    export_print_snapshot.py
   out/
 ```
 

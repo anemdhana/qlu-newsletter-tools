@@ -1,0 +1,275 @@
+/* Static magazine exports — soft paper, matches Tools palette */
+:root {
+  --ink: #352d26;
+  --muted: #7c6e5d;
+  --line: #e8dfd0;
+  --paper: #fffdf8;
+  --gold: #a17b43;
+  --heading: #6b4a25;
+  --accent: #2a6f97;
+  --card: #ffffff;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Source Sans 3", "Noto Sans Telugu", "Segoe UI", sans-serif;
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(161, 123, 67, 0.08), transparent 50%),
+    linear-gradient(180deg, #f6f1e8 0%, var(--paper) 42%, #f4f7fb 100%);
+  color: var(--ink);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+main {
+  width: min(100% - 1.25rem, 48rem);
+  margin: 0 auto;
+  padding: 0.85rem 0 2rem;
+}
+
+.crumb {
+  font-size: 0.78rem;
+  margin: 0 0 0.45rem;
+  color: var(--muted);
+}
+
+.crumb a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.crumb a:hover { text-decoration: underline; }
+
+.brand {
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-weight: 600;
+  margin: 0 0 0.2rem;
+}
+
+h1 {
+  font-size: clamp(1.25rem, 3vw, 1.55rem);
+  margin: 0 0 0.25rem;
+  color: var(--heading);
+  font-weight: 700;
+  line-height: 1.28;
+}
+
+.sub {
+  margin: 0 0 0.9rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.lead {
+  margin: 0 0 1rem;
+  padding: 0.75rem 0.85rem;
+  background: color-mix(in srgb, var(--gold) 6%, var(--paper));
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.cards {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  align-items: start;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  padding: 0.8rem 0.9rem 0.95rem;
+}
+
+.card h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  line-height: 1.3;
+  color: var(--heading);
+}
+
+.meta {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.story-link {
+  margin: 0.55rem 0 0;
+}
+
+.story-link a,
+.back a,
+.catalog a,
+.section-list a,
+.month-link {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 0.88rem;
+}
+
+.story-link a:hover,
+.back a:hover,
+.catalog a:hover,
+.section-list a:hover,
+.month-link:hover {
+  text-decoration: underline;
+}
+
+.story {
+  margin: 0.5rem 0 1rem;
+  padding: 0.9rem 1rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+}
+
+.back { margin: 0; }
+
+.empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.section-list,
+.catalog {
+  list-style: none;
+  margin: 0 0 1.25rem;
+  padding: 0;
+}
+
+.section-list li,
+.catalog-month {
+  margin: 0 0 0.65rem;
+  padding: 0.65rem 0.75rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+}
+
+.catalog-month .month-link {
+  display: block;
+  font-size: 1.05rem;
+  margin-bottom: 0.35rem;
+}
+
+.catalog-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  font-size: 0.82rem;
+}
+
+.catalog-links a { font-weight: 500; }
+
+.md-prose :is(p, ul, ol, blockquote) {
+  margin: 0 0 0.55rem;
+  font-size: 0.88rem;
+  color: #5a4a36;
+}
+
+.md-prose :is(ul, ol) {
+  padding-left: 1.1rem;
+}
+
+.md-prose :is(h1, h2, h3, h4) {
+  margin: 0.4rem 0 0.3rem;
+  color: var(--heading);
+  font-size: 0.95rem;
+  line-height: 1.3;
+}
+
+.md-prose a {
+  color: var(--accent);
+}
+
+.md-prose code {
+  font-size: 0.85em;
+  background: #f0ebe3;
+  padding: 0.05em 0.3em;
+  border-radius: 0.25rem;
+}
+
+h2 {
+  font-size: 1.05rem;
+  color: var(--heading);
+  margin: 0.4rem 0 0.5rem;
+}
+
+.full-link {
+  margin: 0 0 0.55rem;
+}
+
+.full-link a {
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.full-link a:hover { text-decoration: underline; }
+
+.toc {
+  margin: 0 0 1.25rem;
+  padding: 0.75rem 0.9rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+}
+
+.toc h2 {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+}
+
+.toc ol {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.toc li { margin: 0.2rem 0; }
+
+.toc a {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.toc a:hover { text-decoration: underline; }
+
+.print-desk {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.print-sheet {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+  padding: 1rem 1.05rem 1.15rem;
+  box-shadow: 0 8px 22px rgba(53, 45, 38, 0.05);
+}
+
+.sheet-title {
+  margin: 0 0 0.15rem;
+  font-size: 1.15rem;
+  color: var(--heading);
+}
+
+.sheet-key {
+  margin: 0 0 0.75rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.print-sheet .cards {
+  margin-top: 0.35rem;
+}
