@@ -35,6 +35,7 @@ sys.path.insert(0, str(SCRIPTS))
 
 from import_theme_readmore import (  # noqa: E402
   import_theme_files,
+  select_english_theme_md_files,
   select_theme_md_files,
 )
 
@@ -163,17 +164,24 @@ def main() -> int:
   else:
     download_drive_folder(folder_id, dest)
 
-  files = select_theme_md_files(dest)
-  if not files:
-    raise SystemExit(f"No Telugu theme .md files found under {dest}")
+  te_files = select_theme_md_files(dest)
+  en_files = select_english_theme_md_files(dest)
+  if not te_files and not en_files:
+    raise SystemExit(f"No Telugu/English theme .md files found under {dest}")
 
   print("Selected Telugu theme files:")
-  for path in files:
+  for path in te_files:
     print(f"  · {path.name}")
+  print("Selected English theme files:")
+  for path in en_files:
+    print(f"  · {path.name}")
+  if not en_files:
+    print("  · (none)")
 
   create_section = False if args.no_create_section else True
   return import_theme_files(
-    files,
+    te_files,
+    en_files=en_files,
     month=args.month,
     heading_needle=args.heading_needle,
     set_heading=args.set_heading,

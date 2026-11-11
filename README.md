@@ -91,7 +91,7 @@ python scripts/import_theme_readmore_gdrive.py --dry-run
 python scripts/import_theme_readmore_gdrive.py --month 2026-11 --heading-needle "దేవీ నవరాత్రి" --create-section --set-heading "దేవీ నవరాత్రుల జ్ఞానం"
 ```
 
-Default folder: [Devi Navratri Drive folder](https://drive.google.com/drive/folders/1lWK1kKW5eb1Zy3ZOfxjKJYWTMC4-cQLX) (must be shared “Anyone with the link”). Downloads into `out/gdrive-theme-import/`, picks the best Telugu file per day, skips English, skips days already on the Issue.
+Default folder: [Devi Navratri Drive folder](https://drive.google.com/drive/folders/1lWK1kKW5eb1Zy3ZOfxjKJYWTMC4-cQLX) (must be shared “Anyone with the link”). Downloads into `out/gdrive-theme-import/`, picks the best **Telugu + English** file per day (pairs by Jnanodayam day into `*Te` / `*En` fields), skips days already on the Issue unless `--replace-existing` (or fills missing EN).
 
 CMS must be running (`http://localhost:3000`).
 

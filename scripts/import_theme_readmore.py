@@ -110,7 +110,7 @@ def strip_editorial_notes(text: str) -> str:
     out,
     flags=re.S,
   )
-  # Standalone bold source notes
+  # Standalone bold source notes (TE)
   out = re.sub(
     r"\n+\*\*మూలాధార(?:\s*[–—\-]\s*సంపాదకీయ)?\s*గమనిక:\*\*[^\n]*(?:\n(?!\n|#|\*\*)[^\n]*)*",
     "",
@@ -121,9 +121,27 @@ def strip_editorial_notes(text: str) -> str:
     "",
     out,
   )
+  # EN source / editorial notes
+  out = re.sub(
+    r"\n+\*\*Source and editorial note:\*\*[^\n]*(?:\n(?!\n|#|\*\*)[^\n]*)*",
+    "",
+    out,
+    flags=re.I,
+  )
+  out = re.sub(
+    r"\n+\*\*Editorial note:\*\*[^\n]*(?:\n(?!\n|#|\*\*)[^\n]*)*",
+    "",
+    out,
+    flags=re.I,
+  )
   # Opening editorial status callouts (Part 1 incomplete, etc.)
   out = re.sub(
     r"(?m)^>\s*\*\*సంపాదకీయ స్థితి:\*\*.*(?:\n>.*)*\n*",
+    "",
+    out,
+  )
+  out = re.sub(
+    r"(?m)^>\s*\*\*Editorial status:\*\*.*(?:\n>.*)*\n*",
     "",
     out,
   )
@@ -192,6 +210,7 @@ def _meta_speaker(md: str) -> str:
     or meta_value(md, "ప్రత్యేక బోధన")
     or meta_value(md, "ప్రవచనం")
     or meta_value(md, "Speaker")
+    or meta_value(md, "Discourse")
   )
 
 
@@ -203,7 +222,11 @@ def _meta_video(md: str) -> str:
   )
   if video:
     return video
-  m = re.search(r"\[మూల వీడియో\]\((https?://[^)]+)\)", md)
+  m = re.search(
+    r"\[(?:మూల వీడియో|Original video)\]\((https?://[^)]+)\)",
+    md,
+    flags=re.I,
+  )
   if m:
     return m.group(1).strip()
   m = re.search(r"https?://(?:www\.)?youtube\.com/watch\?v=[\w\-]+", md)
@@ -254,16 +277,27 @@ def _build_story_header(
   topic: str,
   series: str,
   video: str,
+  lang: str = "te",
 ) -> str:
   header_lines = []
-  if speaker:
-    header_lines.append(f"**ప్రసంగకర్త:** {speaker}  ")
-  if topic:
-    header_lines.append(f"**అంశం:** {topic}  ")
-  elif series:
-    header_lines.append(f"**శ్రేణి:** {series}  ")
-  if video:
-    header_lines.append(f"**మూల వీడియో:** {video}")
+  if lang == "en":
+    if speaker:
+      header_lines.append(f"**Speaker:** {speaker}  ")
+    if topic:
+      header_lines.append(f"**Topic:** {topic}  ")
+    elif series:
+      header_lines.append(f"**Series:** {series}  ")
+    if video:
+      header_lines.append(f"**Original Video:** {video}")
+  else:
+    if speaker:
+      header_lines.append(f"**ప్రసంగకర్త:** {speaker}  ")
+    if topic:
+      header_lines.append(f"**అంశం:** {topic}  ")
+    elif series:
+      header_lines.append(f"**శ్రేణి:** {series}  ")
+    if video:
+      header_lines.append(f"**మూల వీడియో:** {video}")
   return "\n".join(header_lines).rstrip()
 
 
@@ -335,6 +369,7 @@ def parse_newsletter_readmore_md(path: Path, md: str) -> dict | None:
   return {
     "day": day,
     "file": path.name,
+    "lang": "te",
     "titleTe": title,
     "blurbTe": strip_editorial_notes(blurb),
     "fullStoryTe": strip_editorial_notes(full_story),
@@ -343,24 +378,39 @@ def parse_newsletter_readmore_md(path: Path, md: str) -> dict | None:
   }
 
 
+def detect_theme_lang(path: Path, md: str) -> str:
+  if is_english_theme_file(path):
+    return "en"
+  if is_telugu_theme_file(path):
+    return "te"
+  head = md[:2500]
+  if re.search(r"[\u0C00-\u0C7F]", head):
+    return "te"
+  return "en"
+
+
 def parse_lecture_edition_md(path: Path, md: str) -> dict:
-  """v2 lecture edition: ## పరిచయం / intro + numbered sections (Telugu-first)."""
+  """v2 lecture edition: intro + numbered sections (TE or EN)."""
   title_m = re.search(r"^#\s+(.+)$", md, flags=re.M)
   if not title_m:
     raise ValueError(f"{path.name}: missing H1 title")
   h1 = title_m.group(1).strip()
-  # Card title: "జ్ఞానోదయం – NNNవ రోజు | {H1 page title}"
-  # Day number from metadata line; topic always from the first # heading.
+  lang = detect_theme_lang(path, md)
   day_hint = _jnanodayam_day_from_text(md)
+
+  # Card title: day prefix from metadata + H1 page title
   if day_hint is not None:
-    title = f"జ్ఞానోదయం – {day_hint}వ రోజు | {h1}"
+    if lang == "en":
+      title = f"Jnanodayam — Day {day_hint} | {h1}"
+    else:
+      title = f"జ్ఞానోదయం – {day_hint}వ రోజు | {h1}"
   else:
     subtitle = _jnanodayam_subtitle(md)
     title = subtitle or normalize_title(h1)
 
   speaker = _meta_speaker(md)
   video = _meta_video(md)
-  series = meta_value(md, "శ్రేణి")
+  series = meta_value(md, "శ్రేణి") or meta_value(md, "Series")
 
   blurb = section_after(md, r"^##\s*పరిచయం\s*$")
   if not blurb:
@@ -370,25 +420,25 @@ def parse_lecture_edition_md(path: Path, md: str) -> dict:
   if not blurb:
     blurb = section_after(md, r"^##\s*Today'?s Spiritual Journey\s*$")
 
-  # Body = everything from first numbered/section heading after intro, else after H1 block
   body = ""
   body_m = re.search(
     r"^##\s*(?:0?1\.|పరిచయం|ఈ రోజు|Introduction|Today).*$",
     md,
     flags=re.I | re.M,
   )
-  if body_m and re.match(r"^##\s*(పరిచయం|ఈ రోజు|Introduction|Today)", body_m.group(0), flags=re.I):
-    # start after intro section
+  if body_m and re.match(
+    r"^##\s*(పరిచయం|ఈ రోజు|Introduction|Today)",
+    body_m.group(0),
+    flags=re.I,
+  ):
     after_intro = md[body_m.end() :]
     nxt = re.search(r"^##\s+", after_intro, flags=re.M)
     body = after_intro[nxt.start() :].strip() if nxt else ""
   else:
-    # no dedicated intro — use all ## sections as body; first short ## as blurb fallback later
     first_sec = re.search(r"^##\s+.+$", md, flags=re.M)
     body = md[first_sec.start() :].strip() if first_sec else ""
 
   if not blurb and body:
-    # First section as short blurb when partial day files have no పరిచయం
     first = section_after(md, r"^##\s+.+$")
     if first:
       paras = [p.strip() for p in re.split(r"\n\s*\n", first) if p.strip()]
@@ -402,14 +452,18 @@ def parse_lecture_edition_md(path: Path, md: str) -> dict:
   elif h1 and h1 not in title:
     topic = h1
 
-  header = _build_story_header(speaker=speaker, topic=topic, series=series, video=video)
+  header = _build_story_header(
+    speaker=speaker,
+    topic=topic,
+    series=series,
+    video=video,
+    lang=lang,
+  )
   full_story = (header + "\n\n" + body).strip() if header else body.strip()
   if not full_story:
-    # Entire article after metadata lines
     rest = re.sub(r"^#\s+.+\n+(?:\*\*.+\*\*\s*\n+)*", "", md, count=1).strip()
     full_story = (header + "\n\n" + rest).strip() if header else rest
 
-  # Prefer Jnanodayam episode number (561…) over Navratri day in filename (day-01).
   day = (
     day_from_title(title)
     or _jnanodayam_day_from_text(md)
@@ -425,9 +479,21 @@ def parse_lecture_edition_md(path: Path, md: str) -> dict:
   if not full_story:
     raise ValueError(f"{path.name}: missing lecture body")
 
+  if lang == "en":
+    return {
+      "day": day,
+      "file": path.name,
+      "lang": "en",
+      "titleEn": title,
+      "blurbEn": blurb,
+      "fullStoryEn": full_story,
+      "storyUrl": None,
+      "video": video or None,
+    }
   return {
     "day": day,
     "file": path.name,
+    "lang": "te",
     "titleTe": title,
     "blurbTe": blurb,
     "fullStoryTe": full_story,
@@ -483,22 +549,7 @@ def theme_file_quality(path: Path) -> int:
   return score
 
 
-def select_theme_md_files(folder: Path) -> list[Path]:
-  """Pick best Telugu theme article per day (skip English / manifests)."""
-  skip_names = {"manifest.md", "editorial_qa.md", "batch-manifest.md"}
-  candidates = [
-    p
-    for p in folder.glob("*.md")
-    if p.name.lower() not in skip_names and is_telugu_theme_file(p)
-  ]
-  if not candidates:
-    # fall back: any non-English md
-    candidates = [
-      p
-      for p in folder.glob("*.md")
-      if p.name.lower() not in skip_names and not is_english_theme_file(p)
-    ]
-
+def _pick_best_per_day(candidates: list[Path]) -> list[Path]:
   by_day: dict[int | None, list[Path]] = {}
   for path in candidates:
     try:
@@ -508,11 +559,77 @@ def select_theme_md_files(folder: Path) -> list[Path]:
       day = day_from_filename(path)
     by_day.setdefault(day, []).append(path)
 
-  chosen: list[Path] = []
+  chosen: list[tuple[int | None, Path]] = []
   for day, paths in by_day.items():
     best = max(paths, key=theme_file_quality)
-    chosen.append(best)
-  return sorted(chosen, key=lambda p: (day_from_filename(p) or 0, p.name.lower()))
+    chosen.append((day, best))
+  return [p for _, p in sorted(chosen, key=lambda t: (t[0] is None, t[0] or 0, t[1].name.lower()))]
+
+
+def select_theme_md_files(folder: Path) -> list[Path]:
+  """Pick best Telugu theme article per day (skip English / manifests)."""
+  skip_names = {"manifest.md", "editorial_qa.md", "batch-manifest.md"}
+  candidates = [
+    p
+    for p in folder.glob("*.md")
+    if p.name.lower() not in skip_names and is_telugu_theme_file(p)
+  ]
+  if not candidates:
+    candidates = [
+      p
+      for p in folder.glob("*.md")
+      if p.name.lower() not in skip_names and not is_english_theme_file(p)
+    ]
+  return _pick_best_per_day(candidates)
+
+
+def select_english_theme_md_files(folder: Path) -> list[Path]:
+  """Pick best English theme article per day."""
+  skip_names = {"manifest.md", "editorial_qa.md", "batch-manifest.md"}
+  candidates = [
+    p
+    for p in folder.glob("*.md")
+    if p.name.lower() not in skip_names and is_english_theme_file(p)
+  ]
+  return _pick_best_per_day(candidates)
+
+
+def merge_theme_rows(te_rows: list[dict], en_rows: list[dict]) -> list[dict]:
+  """Merge TE + EN parses by Jnanodayam day number."""
+  by_day: dict[int | None, dict] = {}
+  for row in te_rows:
+    day = row.get("day")
+    by_day[day] = {
+      "day": day,
+      "file": row.get("file"),
+      "titleTe": row.get("titleTe"),
+      "blurbTe": row.get("blurbTe"),
+      "fullStoryTe": row.get("fullStoryTe"),
+      "storyUrl": None,
+      "video": row.get("video"),
+    }
+  for row in en_rows:
+    day = row.get("day")
+    cur = by_day.get(day)
+    if cur is None:
+      # EN-only day: still import with EN fields (TE left empty)
+      by_day[day] = {
+        "day": day,
+        "file": row.get("file"),
+        "titleEn": row.get("titleEn"),
+        "blurbEn": row.get("blurbEn"),
+        "fullStoryEn": row.get("fullStoryEn"),
+        "storyUrl": None,
+        "video": row.get("video"),
+      }
+      continue
+    cur["titleEn"] = row.get("titleEn")
+    cur["blurbEn"] = row.get("blurbEn")
+    cur["fullStoryEn"] = row.get("fullStoryEn")
+    if not cur.get("video") and row.get("video"):
+      cur["video"] = row.get("video")
+    cur["fileEn"] = row.get("file")
+  return [by_day[k] for k in sorted(by_day.keys(), key=lambda d: (d is None, d or 0))]
 
 
 def existing_days(theme_items: list) -> set[int]:
@@ -608,16 +725,23 @@ def main() -> int:
   args = ap.parse_args()
 
   source = Path(args.folder)
+  te_files: list[Path] = []
+  en_files: list[Path] = []
   if source.is_file() and source.suffix.lower() == ".md":
-    files = [source]
+    if is_english_theme_file(source):
+      en_files = [source]
+    else:
+      te_files = [source]
   elif source.is_dir():
     preferred = sorted(source.glob("jnanodayam*.md"))
-    files = preferred or select_theme_md_files(source)
+    te_files = preferred or select_theme_md_files(source)
+    en_files = [] if preferred else select_english_theme_md_files(source)
   else:
     raise SystemExit(f"Not a folder or .md file: {source}")
 
   return import_theme_files(
-    files,
+    te_files,
+    en_files=en_files,
     month=args.month,
     heading_needle=args.heading_needle,
     set_heading=args.set_heading,
@@ -630,9 +754,37 @@ def main() -> int:
   )
 
 
+def _payload_from_row(row: dict, *, existing: dict | None = None) -> dict:
+  base = dict(existing or {})
+  if existing and existing.get("id"):
+    base["id"] = existing["id"]
+  for key in (
+    "titleTe",
+    "blurbTe",
+    "fullStoryTe",
+    "titleEn",
+    "blurbEn",
+    "fullStoryEn",
+  ):
+    if row.get(key):
+      base[key] = row[key]
+  base["storyUrl"] = None
+  return base
+
+
+def _row_label(row: dict) -> str:
+  parts = [f"day {row.get('day')}"]
+  if row.get("file"):
+    parts.append(str(row["file"]))
+  if row.get("fileEn"):
+    parts.append(f"+ {row['fileEn']}")
+  return " · ".join(parts)
+
+
 def import_theme_files(
   files: list[Path],
   *,
+  en_files: list[Path] | None = None,
   month: str,
   heading_needle: str,
   set_heading: str = "",
@@ -643,15 +795,25 @@ def import_theme_files(
   dry_run: bool = False,
   replace_existing: bool = False,
 ) -> int:
-  if not files:
+  te_files = list(files or [])
+  en_list = list(en_files or [])
+  if not te_files and not en_list:
     raise SystemExit("No .md files to import")
 
-  parsed = []
-  for path in files:
+  te_rows: list[dict] = []
+  en_rows: list[dict] = []
+  for path in te_files:
     try:
-      parsed.append(parse_readmore_md(path))
+      te_rows.append(parse_readmore_md(path))
     except ValueError as e:
       raise SystemExit(str(e)) from e
+  for path in en_list:
+    try:
+      en_rows.append(parse_readmore_md(path))
+    except ValueError as e:
+      raise SystemExit(str(e)) from e
+
+  parsed = merge_theme_rows(te_rows, en_rows)
 
   base = base_url.rstrip("/")
   print(f"Logging in to {base} as {email} …")
@@ -667,51 +829,77 @@ def import_theme_files(
     set_heading=set_heading or None,
   )
   if set_heading.strip():
-    themes = {**themes, "headingTe": set_heading.strip(), "asCard": True}
+    themes = {
+      **themes,
+      "headingTe": set_heading.strip(),
+      "headingEn": themes.get("headingEn") or set_heading.strip(),
+      "asCard": True,
+    }
   items = list(themes.get("themeItems") or [])
   have = existing_days(items)
 
   print(f"Issue id={issue_id} month={month}")
   print(f"Themes heading: {themes.get('headingTe')}{' (new section)' if created else ''}")
   print(f"Existing theme items: {len(items)} (days {sorted(have) or '—'})")
+  print(f"Parsed TE days: {sorted(r['day'] for r in te_rows if r.get('day') is not None) or '—'}")
+  print(f"Parsed EN days: {sorted(r['day'] for r in en_rows if r.get('day') is not None) or '—'}")
 
   to_add: list[dict] = []
   skipped: list[str] = []
   replaced = 0
   for row in parsed:
     day = row["day"]
-    label = f"day {day} · {row['file']}"
-    payload_item = {
-      "titleTe": row["titleTe"],
-      "blurbTe": row["blurbTe"],
-      "fullStoryTe": row["fullStoryTe"],
-      "storyUrl": None,
-    }
+    label = _row_label(row)
+    title_preview = (row.get("titleTe") or row.get("titleEn") or "")[:72]
+    te_chars = len(row.get("fullStoryTe") or "")
+    en_chars = len(row.get("fullStoryEn") or "")
     if day is not None and day in have:
+      match_i = None
+      for i, it in enumerate(items):
+        title = it.get("titleTe") or it.get("titleEn") or ""
+        if day_from_title(title) == day:
+          match_i = i
+          break
+      if match_i is None:
+        skipped.append(f"{label} (day present but unmatched item)")
+        continue
+      existing = items[match_i]
       if replace_existing:
-        for i, it in enumerate(items):
-          if day_from_title(it.get("titleTe") or "") == day:
-            if it.get("id"):
-              payload_item = {**payload_item, "id": it["id"]}
-            items[i] = payload_item
-            replaced += 1
-            break
-        have.discard(day)
+        payload_item = _payload_from_row(row, existing=existing)
+        items[match_i] = payload_item
+        replaced += 1
         print(
           f"  ~ replace {label}\n"
-          f"      title: {row['titleTe'][:72]}{'…' if len(row['titleTe']) > 72 else ''}\n"
-          f"      blurb: {len(row['blurbTe'])} chars · fullStory: {len(row['fullStoryTe'])} chars"
+          f"      title: {title_preview}{'…' if len(title_preview) > 72 else ''}\n"
+          f"      TE story: {te_chars} · EN story: {en_chars}"
         )
         continue
+      # Fill missing EN without wiping TE
+      if row.get("fullStoryEn") and not (existing.get("fullStoryEn") or "").strip():
+        payload_item = {
+          **existing,
+          "titleEn": row.get("titleEn") or existing.get("titleEn"),
+          "blurbEn": row.get("blurbEn") or existing.get("blurbEn"),
+          "fullStoryEn": row.get("fullStoryEn"),
+        }
+        items[match_i] = payload_item
+        replaced += 1
+        print(f"  ~ fill EN {label} · EN story: {en_chars}")
+        continue
       skipped.append(f"{label} (already present)")
+      continue
+
+    payload_item = _payload_from_row(row)
+    if not (payload_item.get("titleTe") or payload_item.get("titleEn")):
+      skipped.append(f"{label} (no title)")
       continue
     to_add.append(payload_item)
     if day is not None:
       have.add(day)
     print(
       f"  + {label}\n"
-      f"      title: {row['titleTe'][:72]}{'…' if len(row['titleTe']) > 72 else ''}\n"
-      f"      blurb: {len(row['blurbTe'])} chars · fullStory: {len(row['fullStoryTe'])} chars"
+      f"      title: {title_preview}{'…' if len(title_preview) > 72 else ''}\n"
+      f"      TE story: {te_chars} · EN story: {en_chars}"
     )
 
   for s in skipped:
