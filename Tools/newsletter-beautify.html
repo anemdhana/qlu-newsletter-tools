@@ -35,7 +35,7 @@
   <p class="crumb"><a href="./index.html">← Tools</a></p>
   <p class="brand">Quantum Life University</p>
   <h1>Beautify for newsletter</h1>
-  <p class="sub">Paste notes → copy prompt to ChatGPT → download the .md it creates. Or use <strong>Copy prompt (v2)</strong> for transcript → full article master prompts.</p>
+  <p class="sub">Paste notes → copy prompt to ChatGPT → download the .md it creates. Or use <strong>Copy prompt (v2)</strong> for transcript → full Telugu-first lecture editions (themes &amp; highlight classes).</p>
 
   <div class="grid">
     <div class="panel">
@@ -100,7 +100,7 @@
         <p class="hint" id="actionHint">No API key — you run ChatGPT yourself.</p>
       </div>
       <div id="v2PromptPanel" class="field" style="margin-top:0.65rem;padding-top:0.55rem;border-top:1px solid var(--line)">
-        <label for="v2PromptKind">Master prompts (v2) — transcript → detailed article</label>
+        <label for="v2PromptKind">Master prompts (v2) — transcript → full lecture edition</label>
         <div class="row" style="margin-top:0.35rem">
           <select id="v2PromptKind" style="flex:1 1 14rem;min-width:12rem" disabled>
             <option value="single">Single transcript → one article</option>
@@ -110,7 +110,7 @@
           <button type="button" id="downloadPromptV2" disabled>Download v2 .md</button>
           <button type="button" class="primary" id="openGptV2" disabled>Open ChatGPT</button>
         </div>
-        <p class="hint" id="v2Hint" style="margin:0.35rem 0 0">Available when section is “Summary of the themes covered in that month”.</p>
+        <p class="hint" id="v2Hint" style="margin:0.35rem 0 0">Available for “Summary of the themes…” and “Highlight classes of the month”.</p>
       </div>
     </div>
 
@@ -414,24 +414,27 @@ const copyPromptV2Btn = document.getElementById("copyPromptV2");
 const downloadPromptV2Btn = document.getElementById("downloadPromptV2");
 const openGptV2Btn = document.getElementById("openGptV2");
 
-function themesSectionSelected() {
-  return sectionEl.value === "themes";
+function v2SectionSelected() {
+  const id = sectionEl.value;
+  return id === "themes" || id === "highlights";
 }
 
 function updateV2Hint() {
-  if (!themesSectionSelected()) {
+  if (!v2SectionSelected()) {
     v2Hint.textContent =
-      "Available when section is “Summary of the themes covered in that month”.";
+      "Available for “Summary of the themes…” and “Highlight classes of the month”.";
     return;
   }
+  const section =
+    sectionEl.value === "highlights" ? "highlight classes" : "themes";
   v2Hint.textContent =
     v2KindEl.value === "batch"
-      ? "v2 batch: paste prompt in ChatGPT, then upload the transcripts ZIP."
-      : "v2 single: paste prompt in ChatGPT, then attach one transcript/captions .txt.";
+      ? `v2 batch (${section}): paste prompt in ChatGPT, then upload the transcripts ZIP.`
+      : `v2 single (${section}): paste prompt in ChatGPT, then attach one transcript/captions .txt.`;
 }
 
 function refreshV2Availability() {
-  const on = themesSectionSelected();
+  const on = v2SectionSelected();
   v2KindEl.disabled = !on;
   copyPromptV2Btn.disabled = !on;
   downloadPromptV2Btn.disabled = !on;
@@ -454,8 +457,10 @@ function showV2InBox(text) {
 }
 
 async function loadV2PromptText() {
-  if (!themesSectionSelected()) {
-    throw new Error('Select “Summary of the themes covered in that month” to use v2.');
+  if (!v2SectionSelected()) {
+    throw new Error(
+      'Select “Summary of the themes…” or “Highlight classes of the month” to use v2.'
+    );
   }
   const meta = currentV2Prompt();
   if (!meta?.text) {
