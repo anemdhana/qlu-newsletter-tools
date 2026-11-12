@@ -19,6 +19,8 @@
 # Optional CLI helpers (CMS / Astro must already be running):
 #   import_theme_readmore.py          → local folder of .md (stdlib + Payload :3000)
 #   import_theme_readmore_gdrive.py   → shared Google Drive folder (needs gdown)
+#   import_theme_images.py            → local folder of frame JPGs → themeItems.image
+#   import_theme_images_gdrive.py     → Drive folder of frames (needs gdown)
 #   export_section_pages.py / export_print_snapshot.py → Payload :3000 / Astro :4321
 # Drive folders must be shared as "Anyone with the link can view".
 

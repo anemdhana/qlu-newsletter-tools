@@ -39,6 +39,23 @@ DEFAULT_HEADING_NEEDLE = "శ్రీ గణేశ తత్త్వం"
 DAY_RE = re.compile(r"(\d+)\s*వ\s*రోజు")
 FILE_DAY_RE = re.compile(r"day[-_]?(\d+)", re.I)
 EN_DAY_RE = re.compile(r"\bDay\s+(\d+)\b", re.I)
+TE_ORDINAL_DAY = {
+  "మొదటి": 1,
+  "రెండవ": 2,
+  "రెండో": 2,
+  "మూడవ": 3,
+  "మూడో": 3,
+  "నాల్గవ": 4,
+  "నాలుగవ": 4,
+  "ఐదవ": 5,
+  "ఆరవ": 6,
+  "ఏడవ": 7,
+  "ఎనిమిదవ": 8,
+  "తొమ్మిదవ": 9,
+}
+TE_ORDINAL_DAY_RE = re.compile(
+  r"(" + "|".join(TE_ORDINAL_DAY.keys()) + r")\s*రోజు"
+)
 SPEAK_PEACE_RE = re.compile(
   r"Speak Peace\s*[-–—]\s*(.+?)\s+by\s+.+?\s*[-–—]?\s*Day\s+(\d+)\s*$",
   re.I,
@@ -145,6 +162,49 @@ def strip_editorial_notes(text: str) -> str:
     "",
     out,
   )
+  # Safety notice blocks (TE/EN) — not for newsletter readers
+  out = re.sub(
+    r"\n+#{2,3}\s*(?:ముఖ్యమైన\s+)?భద్రతా?\s*గమనిక\s*\n+"
+    r".*?(?=\n#{1,3}\s|\Z)",
+    "\n",
+    out,
+    flags=re.S,
+  )
+  out = re.sub(
+    r"\n+\*\*(?:ముఖ్యమైన\s+)?భద్రతా?\s*గమనిక:\*\*[^\n]*(?:\n(?!\n|#|\*\*)[^\n]*)*",
+    "",
+    out,
+  )
+  out = re.sub(
+    r"(?m)^>\s*\*\*(?:ముఖ్యమైన\s+)?భద్రతా?\s*గమనిక:\*\*.*(?:\n>.*)*\n*",
+    "",
+    out,
+  )
+  out = re.sub(
+    r"\n+#{2,3}\s*(?:Safety|Practice)\s+not(?:e|ice)\s*\n+"
+    r".*?(?=\n#{1,3}\s|\Z)",
+    "\n",
+    out,
+    flags=re.S | re.I,
+  )
+  out = re.sub(
+    r"\n+\*\*(?:Safety|Practice)\s+not(?:e|ice):\*\*[^\n]*(?:\n(?!\n|#|\*\*)[^\n]*)*",
+    "",
+    out,
+    flags=re.I,
+  )
+  out = re.sub(
+    r"\n+\*(?:Safety|Practice)\s+not(?:e|ice):\*[^\n]*(?:\n(?!\n|#|\*)[^\n]*)*",
+    "",
+    out,
+    flags=re.I,
+  )
+  out = re.sub(
+    r"(?m)^>\s*\*\*(?:Safety|Practice)\s+not(?:e|ice):\*\*.*(?:\n>.*)*\n*",
+    "",
+    out,
+    flags=re.I,
+  )
   return out.strip()
 
 
@@ -196,7 +256,12 @@ def day_from_title(title: str) -> int | None:
   if m:
     return int(m.group(1))
   m = EN_DAY_RE.search(title)
-  return int(m.group(1)) if m else None
+  if m:
+    return int(m.group(1))
+  m = TE_ORDINAL_DAY_RE.search(title)
+  if m:
+    return TE_ORDINAL_DAY.get(m.group(1))
+  return None
 
 
 def day_from_filename(path: Path) -> int | None:
@@ -420,24 +485,32 @@ def parse_lecture_edition_md(path: Path, md: str) -> dict:
   if not blurb:
     blurb = section_after(md, r"^##\s*Today'?s Spiritual Journey\s*$")
 
-  body = ""
-  body_m = re.search(
-    r"^##\s*(?:0?1\.|పరిచయం|ఈ రోజు|Introduction|Today).*$",
-    md,
-    flags=re.I | re.M,
+  # Intro-like ## only (not closing "## ఈ రోజు జ్ఞానం" / "## Bringing…")
+  intro_heading_re = (
+    r"^##\s*(?:0?1\.|పరిచయం|ఈ రోజు ఆధ్యాత్మిక|"
+    r"Introduction|Today'?s Spiritual Journey)\s*$"
   )
-  if body_m and re.match(
-    r"^##\s*(పరిచయం|ఈ రోజు|Introduction|Today)",
-    body_m.group(0),
-    flags=re.I,
-  ):
+  body = ""
+  body_m = re.search(intro_heading_re, md, flags=re.I | re.M)
+  if body_m:
     after_intro = md[body_m.end() :]
     nxt = re.search(r"^##\s+", after_intro, flags=re.M)
-    body = after_intro[nxt.start() :].strip() if nxt else ""
+    body = after_intro[nxt.start() :].strip() if nxt else after_intro.strip()
   else:
     first_sec = re.search(r"^##\s+.+$", md, flags=re.M)
     body = md[first_sec.start() :].strip() if first_sec else ""
 
+  if not blurb:
+    # Day-04 style: H1 + ## topic + lead paragraph before ### sections
+    lead_m = re.search(
+      r"^#\s+.+\n+(?:##\s+.+\n+)?(.+?)(?=\n###\s|\n##\s|\Z)",
+      md,
+      flags=re.S,
+    )
+    if lead_m:
+      paras = [p.strip() for p in re.split(r"\n\s*\n", lead_m.group(1)) if p.strip()]
+      if paras and not paras[0].startswith("#") and not paras[0].startswith("**"):
+        blurb = paras[0]
   if not blurb and body:
     first = section_after(md, r"^##\s+.+$")
     if first:

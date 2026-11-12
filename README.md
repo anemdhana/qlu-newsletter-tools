@@ -95,6 +95,19 @@ Default folder: [Devi Navratri Drive folder](https://drive.google.com/drive/fold
 
 CMS must be running (`http://localhost:3000`).
 
+### Import theme frame images → Payload CMS
+
+Downloads YouTube stills from Drive (names like `{title}[{videoId}]_00h59m51s.jpg`) and sets each matching Themes entry’s `image`. Match order: **video id → day number → title tokens**. When several frames share a day/video, keeps the earliest timestamp (`--pick last|largest` to change).
+
+```powershell
+python scripts/import_theme_images_gdrive.py --dry-run
+python scripts/import_theme_images_gdrive.py --month 2026-11 --heading-needle "గణేశ"
+```
+
+Default folder: [Ganesha frame stills](https://drive.google.com/drive/folders/1JlcjTqqFHliDlc5TibjmJ6Viq7J_pbJF). Local-only: `python scripts/import_theme_images.py --folder out\frames --month 2026-11`.
+
+CMS must already expose `themeItems.image` (QLU News Issues schema). Skips items that already have an image unless `--replace-existing`.
+
 ### Export section → static GitHub Pages (`docs/`)
 
 Pulls one Issue section from Payload and writes TE + EN HTML under `docs/issues/{month}/…` (catalog at `docs/index.html`).
@@ -131,6 +144,8 @@ qlu-newsletter-tools/
     extract_youtube_frame.py
     import_theme_readmore.py
     import_theme_readmore_gdrive.py
+    import_theme_images.py
+    import_theme_images_gdrive.py
     export_section_pages.py
     export_print_snapshot.py
   out/
