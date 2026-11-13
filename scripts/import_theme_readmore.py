@@ -455,7 +455,7 @@ def detect_theme_lang(path: Path, md: str) -> str:
 
 
 def parse_lecture_edition_md(path: Path, md: str) -> dict:
-  """v2 lecture edition: intro + numbered sections (TE or EN)."""
+  """Lecture edition (master publication prompt): intro + numbered sections (TE or EN)."""
   title_m = re.search(r"^#\s+(.+)$", md, flags=re.M)
   if not title_m:
     raise ValueError(f"{path.name}: missing H1 title")
@@ -576,7 +576,7 @@ def parse_lecture_edition_md(path: Path, md: str) -> dict:
 
 
 def parse_readmore_md(path: Path) -> dict:
-  """Parse theme Markdown (legacy newsletter Read More or v2 lecture edition)."""
+  """Parse theme Markdown (legacy newsletter Read More or lecture edition)."""
   md = strip_md(path.read_text(encoding="utf-8"))
   legacy = parse_newsletter_readmore_md(path, md)
   if legacy is not None:

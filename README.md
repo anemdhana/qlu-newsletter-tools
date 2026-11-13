@@ -77,7 +77,7 @@ Optional env: `YT_DLP_PATH`, `FFMPEG_PATH`.
 
 ### Import theme Read More → Payload CMS
 
-Reads Telugu theme `.md` files (legacy Newsletter/Read More **or** v2 lecture editions) and appends Theme Items. **Skips day numbers already present** unless `--replace-existing`.
+Reads theme `.md` files (legacy Newsletter/Read More **or** master publication lecture editions) and appends Theme Items. **Skips day numbers already present** unless `--replace-existing`.
 
 ```powershell
 python scripts/import_theme_readmore.py --folder "C:\Users\dhana\Downloads\QLU_Ganesha_Days_535-538_Revised_ReadMore" --month 2026-11 --dry-run

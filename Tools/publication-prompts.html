@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Publication prompts</title>
+  <link rel="stylesheet" href="./tools.css">
+  <style>
+    .grid { gap: 0.5rem; }
+    .panel { padding: 0.6rem 0.75rem; }
+    .field { margin-top: 0.45rem; }
+    #promptOut {
+      min-height: min(55vh, 28rem);
+      font-size: 0.84rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+    }
+    .prompt-card {
+      display: grid;
+      gap: 0.45rem;
+      margin: 0;
+      padding: 0;
+      border: 0;
+    }
+    .prompt-card label.choice {
+      display: flex;
+      gap: 0.55rem;
+      align-items: flex-start;
+      margin: 0;
+      padding: 0.55rem 0.65rem;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel);
+      cursor: pointer;
+    }
+    .prompt-card label.choice:has(input:checked) {
+      border-color: color-mix(in srgb, var(--gold) 55%, var(--line));
+      background: #fff;
+      box-shadow: inset 3px 0 0 var(--gold);
+    }
+    .prompt-card label.choice strong {
+      display: block;
+      color: var(--heading);
+      font-size: 0.9rem;
+    }
+    .prompt-card label.choice span {
+      display: block;
+      margin-top: 0.15rem;
+      color: var(--muted);
+      font-size: 0.76rem;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumb"><a href="./index.html">← Tools</a></p>
+  <p class="brand">Quantum Life University</p>
+  <h1>Publication prompts</h1>
+
+  <div class="grid">
+    <div class="panel">
+      <label>Which prompt?</label>
+      <div class="prompt-card" role="radiogroup" aria-label="Prompt family">
+        <label class="choice" for="familyLecture">
+          <input id="familyLecture" type="radio" name="family" value="lecture" checked>
+          <div>
+            <strong>Themes &amp; Highlight classes</strong>
+            <span>Telugu + English lecture articles from captions/transcripts.</span>
+          </div>
+        </label>
+        <label class="choice" for="familyStories">
+          <input id="familyStories" type="radio" name="family" value="stories">
+          <div>
+            <strong>Stories and Deeper meanings</strong>
+            <span>Telugu spiritual story articles — narrative + deeper meaning.</span>
+          </div>
+        </label>
+      </div>
+
+      <div class="field">
+        <label for="mode">Mode</label>
+        <select id="mode">
+          <option value="single">Single transcript → one article</option>
+          <option value="batch">Batch ZIP → one article per day/story</option>
+        </select>
+      </div>
+      <p class="hint" id="hint" style="margin-top:0.55rem">Copy the prompt, paste in ChatGPT, then attach your .txt or ZIP.</p>
+      <div class="row" style="margin-top:0.55rem">
+        <button type="button" class="gold" id="copyBtn">Copy prompt</button>
+        <button type="button" id="downloadBtn">Download .md</button>
+        <button type="button" class="primary" id="openGptBtn">Open ChatGPT</button>
+        <span class="status" id="status" aria-live="polite"></span>
+      </div>
+    </div>
+
+    <div class="panel full">
+      <label for="promptOut">Prompt preview</label>
+      <textarea id="promptOut" spellcheck="false" readonly></textarea>
+    </div>
+  </div>
+</main>
+<script src="./prompts/publication-prompts.js"></script>
+<script>
+const familyEls = [...document.querySelectorAll('input[name="family"]')];
+const modeEl = document.getElementById("mode");
+const promptOut = document.getElementById("promptOut");
+const statusEl = document.getElementById("status");
+const hintEl = document.getElementById("hint");
+const copyBtn = document.getElementById("copyBtn");
+const downloadBtn = document.getElementById("downloadBtn");
+const openGptBtn = document.getElementById("openGptBtn");
+const STORAGE = "qlu-tools-publication-prompts";
+
+function family() {
+  return familyEls.find((el) => el.checked)?.value || "lecture";
+}
+
+function currentMeta() {
+  const pack = window.QLU_PUBLICATION_PROMPTS || {};
+  const batch = modeEl.value === "batch";
+  if (family() === "stories") {
+    return pack[batch ? "stories-batch" : "stories"] || null;
+  }
+  return pack[batch ? "batch" : "single"] || null;
+}
+
+function refresh() {
+  const meta = currentMeta();
+  const text = (meta?.text || "").trim();
+  promptOut.value = text;
+  const ok = Boolean(text);
+  copyBtn.disabled = !ok;
+  downloadBtn.disabled = !ok;
+  openGptBtn.disabled = !ok;
+
+  if (family() === "stories") {
+    hintEl.textContent = batchHint(
+      "Stories and Deeper meanings",
+      "attach one transcript/captions .txt",
+      "upload the transcripts ZIP"
+    );
+  } else {
+    hintEl.textContent = batchHint(
+      "Themes / Highlight classes",
+      "attach one transcript/captions .txt",
+      "upload the transcripts ZIP"
+    );
+  }
+
+  if (!ok) statusEl.textContent = "Prompt pack not loaded.";
+  else statusEl.textContent = `Ready · ${meta.label}`;
+
+  try {
+    localStorage.setItem(
+      STORAGE,
+      JSON.stringify({ family: family(), mode: modeEl.value })
+    );
+  } catch (_) {}
+}
+
+function batchHint(section, singleAction, batchAction) {
+  return modeEl.value === "batch"
+    ? `${section}: Copy prompt → ChatGPT → ${batchAction}.`
+    : `${section}: Copy prompt → ChatGPT → ${singleAction}.`;
+}
+
+async function copyText(text, okMsg) {
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    statusEl.textContent = okMsg;
+  } catch (_) {
+    statusEl.textContent = "Copy failed — select the text and copy manually.";
+  }
+}
+
+copyBtn.addEventListener("click", async () => {
+  const meta = currentMeta();
+  const text = (meta?.text || "").trim();
+  if (!text) return;
+  await copyText(text, `Copied · ${meta.label}. Paste in ChatGPT, then attach source.`);
+});
+
+downloadBtn.addEventListener("click", () => {
+  const meta = currentMeta();
+  const text = (meta?.text || "").trim();
+  if (!text) return;
+  const blob = new Blob([text + "\n"], { type: "text/markdown;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = meta.file || "QLU-publication-prompt.md";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  statusEl.textContent = `Downloaded ${a.download}`;
+});
+
+openGptBtn.addEventListener("click", async () => {
+  const meta = currentMeta();
+  const text = (meta?.text || "").trim();
+  if (!text) return;
+  await copyText(
+    text,
+    modeEl.value === "batch"
+      ? "Copied — ChatGPT opening; paste, then upload the ZIP."
+      : "Copied — ChatGPT opening; paste, then attach the .txt."
+  );
+  window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer");
+});
+
+familyEls.forEach((el) => el.addEventListener("change", refresh));
+modeEl.addEventListener("change", refresh);
+
+try {
+  const raw = localStorage.getItem(STORAGE);
+  if (raw) {
+    const d = JSON.parse(raw);
+    if (d.family === "stories") document.getElementById("familyStories").checked = true;
+    if (d.mode === "batch" || d.mode === "single") modeEl.value = d.mode;
+  }
+} catch (_) {}
+
+refresh();
+</script>
+</body>
+</html>
