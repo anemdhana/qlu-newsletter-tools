@@ -86,6 +86,18 @@ python scripts/extract_youtube_frame.py "https://youtu.be/VIDEO_ID" -t 90 -o out
 
 Optional env: `YT_DLP_PATH`, `FFMPEG_PATH`.
 
+### Install Git + pull latest tools (helper)
+
+Bootstrap/update into `%USERPROFILE%\GitHub\qlu-newsletter-tools` (or `~/GitHub/...`). Installs Git via winget if missing, then clone/pull and prints a short colored log.
+
+```powershell
+# Once you already have a copy:
+python scripts/pull_latest_tools.py
+
+# Or download the script alone, then:
+python pull_latest_tools.py --dir "$env:USERPROFILE\GitHub"
+```
+
 ### Pick best portrait / smile frames
 
 Clone of the frame extract flow, but runs three steps: **sample** → **score** (face + smile via OpenCV) → **keep top picks**. Filenames match Extract frame: `{title}[{videoId}]_00h01m30s.jpg`.
