@@ -15,6 +15,7 @@
 #     bundle (installed by this file). Optional system install:
 #        winget install Gyan.FFmpeg
 #     Or set FFMPEG_PATH / YT_DLP_PATH to custom executables.
+#   • pick_best_portrait_frame.py → opencv-python-headless (auto-pip on first run)
 #   • Voice type (Whisper) → faster-whisper downloads a model on first use.
 #
 # Optional CLI helpers (CMS / Astro must already be running):
@@ -29,3 +30,5 @@ yt-dlp>=2024.8.0
 imageio-ffmpeg>=0.5.1
 gdown>=5.2.0
 faster-whisper>=1.0.0
+opencv-python-headless>=4.8.0
+# OpenCV 5 dropped Haar Cascades; pick_best_portrait_frame uses YuNet ONNX (auto-downloaded).

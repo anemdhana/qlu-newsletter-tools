@@ -86,6 +86,21 @@ python scripts/extract_youtube_frame.py "https://youtu.be/VIDEO_ID" -t 90 -o out
 
 Optional env: `YT_DLP_PATH`, `FFMPEG_PATH`.
 
+### Pick best portrait / smile frames
+
+Clone of the frame extract flow, but runs three steps: **sample** → **score** (face + smile via OpenCV) → **keep top picks**. Filenames match Extract frame: `{title}[{videoId}]_00h01m30s.jpg`.
+
+**UI:** Tools → Extract frame → mode **Best portrait / smile** (video or playlist → zip). API: `POST /api/pick-portrait`.
+
+```powershell
+python scripts/pick_best_portrait_frame.py VIDEO_ID
+python scripts/pick_best_portrait_frame.py VIDEO_ID --start 00:45:00 --end 01:15:00 --every-min 1 --top 3
+python scripts/pick_best_portrait_frame.py "https://youtu.be/VIDEO_ID" -o out\portraits --top 5 --every-min 2
+python scripts/pick_best_portrait_frame.py --playlist PLxxxx -o out\portraits --top 1 --start 00:30:00 --end 01:00:00
+```
+
+Defaults: **start `00:45:00`**, **end `01:15:00`**, **sample every 1 minute** (short videos clamp the window). Writes JPGs under `out/portrait-picks` (playlist → `{playlistId}-portrait-picks.zip`). First run may `pip install opencv-python-headless`.
+
 ### Import theme Read More → Payload CMS
 
 Reads theme `.md` files (legacy Newsletter/Read More **or** master publication lecture editions) and appends Theme Items. **Skips day numbers already present** unless `--replace-existing`.

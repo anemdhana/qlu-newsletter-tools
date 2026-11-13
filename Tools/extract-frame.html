@@ -11,12 +11,26 @@
   <p class="crumb"><a href="./index.html">← Tools</a></p>
   <p class="brand">Quantum Life University</p>
   <h1>Extract frame</h1>
-  <p class="sub">Save a still picture from a YouTube video at the time you choose.</p>
+  <p class="sub">Save a still from a YouTube video — at a time you choose, or the best smiling portrait.</p>
 
   <div class="panel">
-    <label for="video">Video ID or link</label>
-    <input id="video" type="text" placeholder="e.g. dQw4w9WgXcQ or https://youtu.be/…" autocomplete="off">
-    <div class="grid" style="gap:0.55rem; margin-top:0.55rem">
+    <label for="mode">Mode</label>
+    <select id="mode">
+      <option value="time" selected>At a chosen time</option>
+      <option value="portrait">Best portrait / smile</option>
+    </select>
+
+    <div class="field" style="margin-top:0.55rem">
+      <label for="video">Video ID or link</label>
+      <input id="video" type="text" placeholder="e.g. dQw4w9WgXcQ or https://youtu.be/…" autocomplete="off">
+    </div>
+
+    <div id="portrait-extra" class="field" style="display:none; margin-top:0.55rem">
+      <label for="playlist">Playlist ID or link (optional)</label>
+      <input id="playlist" type="text" placeholder="e.g. PLxxxx or playlist URL… → zip of best frames" autocomplete="off">
+    </div>
+
+    <div id="time-row" class="grid" style="gap:0.55rem; margin-top:0.55rem">
       <div>
         <label for="time">Time in the video</label>
         <input id="time" type="text" placeholder="e.g. 1:30" autocomplete="off">
@@ -29,6 +43,33 @@
         </select>
       </div>
     </div>
+
+    <div id="portrait-opts" class="grid" style="gap:0.55rem; margin-top:0.55rem; display:none">
+      <div>
+        <label for="startTime">Start time</label>
+        <input id="startTime" type="text" value="00:45:00" placeholder="e.g. 00:45:00" title="Begin sampling here" autocomplete="off">
+      </div>
+      <div>
+        <label for="endTime">End time</label>
+        <input id="endTime" type="text" value="01:15:00" placeholder="e.g. 01:15:00" title="Stop sampling here — keeps the job short" autocomplete="off">
+      </div>
+      <div>
+        <label for="top">Keep top</label>
+        <input id="top" type="number" min="1" max="10" value="1" title="How many best frames per video">
+      </div>
+      <div>
+        <label for="intervalMin">Sample every (min)</label>
+        <input id="intervalMin" type="number" min="0.5" max="30" step="0.5" value="1" title="Minutes between sampled frames">
+      </div>
+      <div>
+        <label for="format2">Picture type</label>
+        <select id="format2">
+          <option value="jpg" selected>Photo (JPEG)</option>
+          <option value="png">High detail (PNG)</option>
+        </select>
+      </div>
+    </div>
+
     <div class="row">
       <button type="button" class="primary" id="go">Save frame</button>
       <span id="status" class="status"></span>
@@ -40,43 +81,98 @@
   const statusEl = document.getElementById("status");
   const preview = document.getElementById("preview");
   const go = document.getElementById("go");
+  const modeEl = document.getElementById("mode");
+  const timeRow = document.getElementById("time-row");
+  const portraitExtra = document.getElementById("portrait-extra");
+  const portraitOpts = document.getElementById("portrait-opts");
 
   function setStatus(msg, kind) {
     statusEl.textContent = msg || "";
     statusEl.className = "status" + (kind ? " " + kind : "");
   }
 
-  async function run() {
+  function syncMode() {
+    const portrait = modeEl.value === "portrait";
+    timeRow.style.display = portrait ? "none" : "grid";
+    portraitExtra.style.display = portrait ? "block" : "none";
+    portraitOpts.style.display = portrait ? "grid" : "none";
+    go.textContent = portrait ? "Pick best frames" : "Save frame";
+  }
+
+  modeEl.addEventListener("change", syncMode);
+  syncMode();
+
+  function appendDownload(data) {
+    setStatus(data.message + " · ", "ok");
+    const a = document.createElement("a");
+    a.href = data.downloadUrl;
+    a.className = "dl";
+    a.textContent = "Download " + data.filename;
+    a.download = data.filename;
+    statusEl.appendChild(a);
+    if (data.previewUrl || (data.kind !== "playlist" && data.downloadUrl && !/\.zip$/i.test(data.filename || ""))) {
+      preview.src = (data.previewUrl || data.downloadUrl) + "?t=" + Date.now();
+      preview.style.display = "block";
+    } else {
+      preview.style.display = "none";
+    }
+  }
+
+  async function runTime() {
     const video = document.getElementById("video").value.trim();
     const time = document.getElementById("time").value.trim();
     if (!video || !time) {
       setStatus("Enter a video ID/link and time.", "err");
       return;
     }
-    go.disabled = true;
     setStatus("Saving frame…");
     preview.style.display = "none";
+    const res = await fetch("/api/extract-frame", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        video,
+        time,
+        format: document.getElementById("format").value,
+      }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || "Failed");
+    appendDownload(data);
+  }
+
+  async function runPortrait() {
+    const video = document.getElementById("video").value.trim();
+    const playlist = document.getElementById("playlist").value.trim();
+    if (!video && !playlist) {
+      setStatus("Enter a video ID/link or playlist ID/link.", "err");
+      return;
+    }
+    setStatus(playlist ? "Picking portraits for playlist… (can take a while)" : "Sampling & scoring frames…");
+    preview.style.display = "none";
+    const res = await fetch("/api/pick-portrait", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        video,
+        playlist,
+        startTime: document.getElementById("startTime").value.trim() || "00:45:00",
+        endTime: document.getElementById("endTime").value.trim() || "01:15:00",
+        top: Number(document.getElementById("top").value) || 1,
+        intervalMin: Number(document.getElementById("intervalMin").value) || 1,
+        format: document.getElementById("format2").value,
+      }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || "Failed");
+    appendDownload(data);
+  }
+
+  async function run() {
+    go.disabled = true;
     try {
-      const res = await fetch("/api/extract-frame", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          video,
-          time,
-          format: document.getElementById("format").value,
-        }),
-      });
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.error || "Failed");
-      setStatus(data.message + " · ", "ok");
-      const a = document.createElement("a");
-      a.href = data.downloadUrl;
-      a.className = "dl";
-      a.textContent = "Download " + data.filename;
-      a.download = data.filename;
-      statusEl.appendChild(a);
-      preview.src = data.downloadUrl + "?t=" + Date.now();
-      preview.style.display = "block";
+      if (modeEl.value === "portrait") await runPortrait();
+      else await runTime();
     } catch (e) {
       setStatus(e.message || String(e), "err");
     } finally {

@@ -6,6 +6,7 @@ venv/
 out/*
 !out/.gitkeep
 .yt-dlp-cache/
+.cache/
 *.zip
 *-captions.txt
 .DS_Store

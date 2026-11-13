@@ -6,7 +6,7 @@ Local Tools server — serves Tools/*.html and runs Python caption/frame/whisper
   start.cmd
 
 UI: http://127.0.0.1:8765/Tools/
-API: POST /api/captions , POST /api/extract-frame , POST /api/whisper
+API: POST /api/captions , POST /api/extract-frame , POST /api/pick-portrait , POST /api/whisper
 """
 
 from __future__ import annotations
@@ -217,6 +217,173 @@ def run_extract_frame(payload: dict) -> dict:
   }
 
 
+def run_pick_portrait(payload: dict) -> dict:
+  from pick_best_portrait_frame import (
+    pick_best_portraits,
+    pick_playlist_portraits,
+    zip_paths,
+  )
+
+  playlist = (payload.get("playlist") or "").strip()
+  video = (payload.get("video") or "").strip()
+  fmt = "png" if payload.get("format") == "png" else "jpg"
+  try:
+    top = max(1, min(10, int(payload.get("top") or 1)))
+  except (TypeError, ValueError) as e:
+    raise ValueError("top must be an integer 1–10.") from e
+  from extract_youtube_frame import parse_timestamp
+
+  # Sample interval: prefer minutes from UI; fall back to seconds for CLI/API compat.
+  interval = None
+  raw_min = payload.get("intervalMin")
+  if raw_min is not None and str(raw_min).strip() != "":
+    try:
+      interval = float(raw_min) * 60.0
+    except (TypeError, ValueError) as e:
+      raise ValueError("intervalMin must be minutes (e.g. 1).") from e
+  elif payload.get("interval") is not None and str(payload.get("interval")).strip() != "":
+    try:
+      interval = float(payload.get("interval"))
+    except (TypeError, ValueError) as e:
+      raise ValueError("interval must be a number of seconds.") from e
+  else:
+    interval = 60.0  # default: every 1 minute
+  if interval <= 0 or interval > 30 * 60:
+    raise ValueError("Sample interval must be between 0 and 30 minutes.")
+
+  def _parse_clock(raw, *, default: float | None, label: str) -> float | None:
+    if raw is None or str(raw).strip() == "":
+      return default
+    text = str(raw).strip().lower()
+    if text in ("end", "inf", "none"):
+      return None
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+      value = float(raw)
+    else:
+      value = parse_timestamp(str(raw).strip())
+    if not (value == value) or value < 0:
+      raise ValueError(f"Enter a valid {label} (e.g. 00:45:00).")
+    return value
+
+  # Window defaults: 00:45:00 → 01:15:00 (~30 min) so jobs finish quickly.
+  skip_start = _parse_clock(
+    payload.get("startTime") if payload.get("startTime") not in (None, "") else payload.get("skipStart"),
+    default=45 * 60,
+    label="start time",
+  )
+  assert skip_start is not None
+  end_at = _parse_clock(
+    payload.get("endTime"),
+    default=75 * 60,
+    label="end time",
+  )
+  if end_at is not None and end_at <= skip_start:
+    raise ValueError("End time must be after start time.")
+
+  try:
+    skip_end = float(payload.get("skipEnd") if payload.get("skipEnd") is not None else 15)
+  except (TypeError, ValueError) as e:
+    raise ValueError("skipEnd must be a number.") from e
+  try:
+    max_videos = max(1, min(200, int(payload.get("maxVideos") or 80)))
+  except (TypeError, ValueError) as e:
+    raise ValueError("maxVideos must be an integer.") from e
+
+  OUT.mkdir(parents=True, exist_ok=True)
+  out_dir = OUT / "portrait-picks"
+  out_dir.mkdir(parents=True, exist_ok=True)
+
+  try:
+    if playlist:
+      result = pick_playlist_portraits(
+        playlist,
+        out_dir=out_dir,
+        interval=interval,
+        skip_start=skip_start,
+        end_at=end_at,
+        skip_end=skip_end,
+        top=top,
+        fmt=fmt,
+        max_videos=max_videos,
+      )
+      zip_path = Path(result["zip"])
+      # Ensure zip lives under OUT for /download/
+      dest = OUT / zip_path.name
+      if zip_path.resolve() != dest.resolve():
+        dest.write_bytes(zip_path.read_bytes())
+      return {
+        "ok": True,
+        "kind": "playlist",
+        "downloadUrl": f"/download/{urllib.parse.quote(dest.name)}",
+        "filename": dest.name,
+        "playlistId": result.get("playlistId"),
+        "frameCount": len(result.get("files") or []),
+        "message": (
+          f"Playlist zip ready: {dest.name} "
+          f"({len(result.get('files') or [])} frames"
+          f"{', ' + str(len(result['failures'])) + ' failed' if result.get('failures') else ''})"
+        ),
+      }
+
+    if not video:
+      raise ValueError("Provide video or playlist.")
+
+    result = pick_best_portraits(
+      video,
+      out_dir=out_dir,
+      interval=interval,
+      skip_start=skip_start,
+      end_at=end_at,
+      skip_end=skip_end,
+      top=top,
+      fmt=fmt,
+      write_report=True,
+    )
+    files = [Path(p) for p in (result.get("files") or [])]
+    if not files:
+      raise ValueError("No portrait frames were produced.")
+
+    # Mirror winners into OUT root so /download/ works (same as extract-frame).
+    mirrored: list[Path] = []
+    for src in files:
+      dest = OUT / src.name
+      if src.resolve() != dest.resolve():
+        dest.write_bytes(src.read_bytes())
+      mirrored.append(dest)
+
+    if len(mirrored) == 1:
+      filename = mirrored[0].name
+      return {
+        "ok": True,
+        "kind": "video",
+        "downloadUrl": f"/download/{urllib.parse.quote(filename)}",
+        "previewUrl": f"/download/{urllib.parse.quote(filename)}",
+        "filename": filename,
+        "title": result.get("title"),
+        "picks": result.get("picks"),
+        "message": f"Best portrait: {filename}",
+      }
+
+    # Multiple tops for one video → zip (same pattern as playlist).
+    vid = result.get("videoId") or "video"
+    zip_name = f"{vid}-portrait-picks.zip"
+    zip_dest = OUT / zip_name
+    zip_paths(mirrored, zip_dest)
+    preview = mirrored[0].name
+    return {
+      "ok": True,
+      "kind": "video",
+      "downloadUrl": f"/download/{urllib.parse.quote(zip_name)}",
+      "previewUrl": f"/download/{urllib.parse.quote(preview)}",
+      "filename": zip_name,
+      "title": result.get("title"),
+      "picks": result.get("picks"),
+      "message": f"Top {len(mirrored)} portraits zipped: {zip_name}",
+    }
+  except SystemExit as e:
+    raise ValueError(str(e) if e.args else "Portrait pick failed.") from e
+
+
 def whisper_status() -> dict:
   try:
     import faster_whisper  # noqa: F401
@@ -418,6 +585,10 @@ class Handler(BaseHTTPRequestHandler):
         return
       if path == "/api/extract-frame":
         result = run_extract_frame(payload)
+        self._send_json(200, result)
+        return
+      if path == "/api/pick-portrait":
+        result = run_pick_portrait(payload)
         self._send_json(200, result)
         return
       self._send_json(404, {"ok": False, "error": f"No API {path}"})
