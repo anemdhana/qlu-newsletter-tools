@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
 """
-Local Tools server — serves Tools/*.html and runs Python caption/frame jobs.
+Local Tools server — serves Tools/*.html and runs Python caption/frame/whisper jobs.
 
   python serve.py
   start.cmd
 
 UI: http://127.0.0.1:8765/Tools/
-API: POST /api/captions , POST /api/extract-frame
+API: POST /api/captions , POST /api/extract-frame , POST /api/whisper
 """
 
 from __future__ import annotations
 
 import json
 import mimetypes
+import re
 import sys
+import tempfile
 import traceback
 import urllib.parse
 import webbrowser
@@ -29,6 +31,8 @@ sys.path.insert(0, str(SCRIPTS))
 
 HOST = "127.0.0.1"
 PORT = 8765
+# Mic / lecture clips can be large; Whisper can take minutes on CPU.
+MAX_UPLOAD_BYTES = 80 * 1024 * 1024
 
 
 def _json_body(handler: BaseHTTPRequestHandler) -> dict:
@@ -41,6 +45,51 @@ def _json_body(handler: BaseHTTPRequestHandler) -> dict:
   if not isinstance(data, dict):
     raise ValueError("JSON body must be an object")
   return data
+
+
+def _parse_multipart(handler: BaseHTTPRequestHandler) -> tuple[dict[str, str], dict[str, tuple[str, bytes]]]:
+  """Minimal multipart/form-data parser → (fields, files{name: (filename, bytes)})."""
+  ctype = handler.headers.get("Content-Type") or ""
+  m = re.search(r"boundary=([^;]+)", ctype, flags=re.I)
+  if not m:
+    raise ValueError("Expected multipart/form-data with boundary")
+  boundary = m.group(1).strip().strip('"').encode("ascii", "ignore")
+  length = int(handler.headers.get("Content-Length") or 0)
+  if length <= 0:
+    raise ValueError("Empty upload")
+  if length > MAX_UPLOAD_BYTES:
+    raise ValueError(f"Upload too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB)")
+  body = handler.rfile.read(length)
+  sep = b"--" + boundary
+  fields: dict[str, str] = {}
+  files: dict[str, tuple[str, bytes]] = {}
+  for part in body.split(sep):
+    if not part or part in (b"--\r\n", b"--", b"--\n"):
+      continue
+    if part.startswith(b"\r\n"):
+      part = part[2:]
+    if part.endswith(b"\r\n"):
+      part = part[:-2]
+    if part == b"--":
+      continue
+    header_blob, _, content = part.partition(b"\r\n\r\n")
+    if not _:
+      header_blob, _, content = part.partition(b"\n\n")
+    if content.endswith(b"\r\n"):
+      content = content[:-2]
+    elif content.endswith(b"\n"):
+      content = content[:-1]
+    headers = header_blob.decode("utf-8", "replace")
+    name_m = re.search(r'name="([^"]+)"', headers)
+    if not name_m:
+      continue
+    name = name_m.group(1)
+    file_m = re.search(r'filename="([^"]*)"', headers)
+    if file_m is not None:
+      files[name] = (file_m.group(1) or "audio.bin", content)
+    else:
+      fields[name] = content.decode("utf-8", "replace")
+  return fields, files
 
 
 def run_captions(payload: dict) -> dict:
@@ -168,8 +217,97 @@ def run_extract_frame(payload: dict) -> dict:
   }
 
 
+def whisper_status() -> dict:
+  try:
+    import faster_whisper  # noqa: F401
+
+    installed = True
+    detail = getattr(faster_whisper, "__version__", "installed")
+  except Exception as e:
+    installed = False
+    detail = str(e)
+  ffmpeg = None
+  try:
+    from whisper_transcribe import ensure_ffmpeg_on_path
+
+    ffmpeg = ensure_ffmpeg_on_path()
+  except Exception:
+    pass
+  return {
+    "ok": True,
+    "fasterWhisper": installed,
+    "fasterWhisperDetail": detail,
+    "ffmpeg": bool(ffmpeg),
+    "ffmpegPath": ffmpeg,
+    "defaultModel": "small",
+    "maxUploadMb": MAX_UPLOAD_BYTES // (1024 * 1024),
+  }
+
+
+def run_whisper_upload(fields: dict[str, str], files: dict[str, tuple[str, bytes]]) -> dict:
+  from whisper_transcribe import safe_out_name, transcribe_audio
+
+  if "audio" not in files:
+    raise ValueError("Upload an audio file field named “audio”.")
+  filename, data = files["audio"]
+  if not data:
+    raise ValueError("Audio file is empty.")
+
+  lang = (fields.get("lang") or "te").strip()
+  model = (fields.get("model") or "small").strip() or "small"
+  extra = (fields.get("extraPrompt") or "").strip() or None
+  allowed = {"tiny", "base", "small", "medium", "large-v3"}
+  if model not in allowed:
+    raise ValueError(f"model must be one of: {', '.join(sorted(allowed))}")
+
+  suffix = Path(filename).suffix.lower() or ".webm"
+  if suffix not in {".webm", ".wav", ".mp3", ".m4a", ".ogg", ".mp4", ".mpeg", ".mpga"}:
+    suffix = ".webm"
+
+  OUT.mkdir(parents=True, exist_ok=True)
+  with tempfile.TemporaryDirectory(prefix="qlu-whisper-") as tmp:
+    audio_path = Path(tmp) / f"upload{suffix}"
+    audio_path.write_bytes(data)
+    result = transcribe_audio(
+      audio_path,
+      lang=lang,
+      model_size=model,
+      extra_prompt=extra,
+      use_cache=True,
+    )
+
+  stem = Path(filename).stem or "recording"
+  out_name = safe_out_name(stem, lang)
+  dest = OUT / out_name
+  dest.write_text(result["text"] + "\n", encoding="utf-8", newline="\n")
+  text = (result.get("text") or "").strip()
+  preview_lines = text.splitlines()[:16]
+  return {
+    "ok": True,
+    "text": text,
+    "language": result["language"],
+    "duration": result["duration"],
+    "segmentCount": len(result["segments"]),
+    "model": result["model"],
+    "downloadUrl": f"/download/{urllib.parse.quote(out_name)}" if text else "",
+    "filename": out_name if text else "",
+    "preview": "\n".join(preview_lines),
+    "message": (
+      f"Whisper done · {result['language']} · ~{result['duration']}s · "
+      f"{len(result['segments'])} segments · {out_name}"
+      if text
+      else (
+        f"Whisper finished but found no speech (~{result['duration']}s). "
+        "Speak louder / longer with the level bar moving."
+      )
+    ),
+  }
+
+
 class Handler(BaseHTTPRequestHandler):
   server_version = "QLUNewsletterTools/1.0"
+  # Whisper on CPU can exceed the default socket idle assumptions; keep generous.
+  timeout = 60 * 30
 
   def log_message(self, fmt: str, *args) -> None:
     sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
@@ -225,6 +363,10 @@ class Handler(BaseHTTPRequestHandler):
       self._send_json(200, {"ok": True, "out": str(OUT)})
       return
 
+    if path == "/api/whisper/status":
+      self._send_json(200, whisper_status())
+      return
+
     if path.startswith("/download/"):
       name = path[len("/download/") :]
       # prevent path traversal
@@ -263,6 +405,12 @@ class Handler(BaseHTTPRequestHandler):
     parsed = urllib.parse.urlparse(self.path)
     path = parsed.path
     try:
+      if path == "/api/whisper":
+        fields, files = _parse_multipart(self)
+        result = run_whisper_upload(fields, files)
+        self._send_json(200, result)
+        return
+
       payload = _json_body(self)
       if path == "/api/captions":
         result = run_captions(payload)
@@ -273,7 +421,7 @@ class Handler(BaseHTTPRequestHandler):
         self._send_json(200, result)
         return
       self._send_json(404, {"ok": False, "error": f"No API {path}"})
-    except (ValueError, RuntimeError, OSError) as e:
+    except (ValueError, RuntimeError, OSError, FileNotFoundError) as e:
       traceback.print_exc()
       self._send_json(400, {"ok": False, "error": str(e) or e.__class__.__name__})
     except Exception as e:

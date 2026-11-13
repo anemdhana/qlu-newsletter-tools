@@ -11,10 +11,11 @@
 # System notes (not installable via pip alone):
 #   • Captions (default Innertube engine) → stdlib only; no extra packages.
 #   • Captions (--engine yt-dlp) / Extract frame → need packages below.
-#   • Extract frame needs an ffmpeg binary. Prefer the imageio-ffmpeg bundle
-#     (installed by this file). Optional system install:
+#   • Extract frame / Whisper need an ffmpeg binary. Prefer the imageio-ffmpeg
+#     bundle (installed by this file). Optional system install:
 #        winget install Gyan.FFmpeg
 #     Or set FFMPEG_PATH / YT_DLP_PATH to custom executables.
+#   • Voice type (Whisper) → faster-whisper downloads a model on first use.
 #
 # Optional CLI helpers (CMS / Astro must already be running):
 #   import_theme_readmore.py          → local folder of .md (stdlib + Payload :3000)
@@ -27,3 +28,4 @@
 yt-dlp>=2024.8.0
 imageio-ffmpeg>=0.5.1
 gdown>=5.2.0
+faster-whisper>=1.0.0

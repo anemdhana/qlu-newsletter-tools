@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice type</title>
+<link rel="stylesheet" href="./tools.css">
+<style>
+  .mode-row { display: flex; gap: 0.45rem; flex-wrap: wrap; margin: 0 0 0.55rem; }
+  .mode-row button {
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+    border-radius: 999px; padding: 0.35rem 0.85rem; cursor: pointer; font-weight: 600;
+  }
+  .mode-row button.is-active {
+    background: var(--heading); color: #fff8ef; border-color: var(--heading);
+  }
+  .mic-row { display: flex; gap: 0.75rem; align-items: center; margin-top: 0; flex-wrap: wrap; }
+  button.mic {
+    width: 2.75rem; height: 2.75rem; border-radius: 50%; border: 0; cursor: pointer;
+    background: #c44; color: white; font-size: 1.15rem; flex: 0 0 auto;
+    padding: 0; box-shadow: 0 4px 10px rgba(196, 68, 68, 0.22);
+  }
+  button.mic.on { background: var(--gold); box-shadow: 0 0 0 5px rgba(161, 123, 67, 0.2); }
+  #status { font-size: 0.92rem; color: var(--ink); flex: 1 1 12rem; }
+  .level-wrap { flex: 1 1 100%; margin-top: 0.35rem; }
+  .level-track {
+    height: 0.55rem; border-radius: 999px; background: #ebe4d8; overflow: hidden;
+    border: 1px solid var(--line);
+  }
+  .level-fill {
+    height: 100%; width: 0%; background: linear-gradient(90deg, #6b4a25, #c4a35a);
+    transition: width 0.08s linear;
+  }
+  .level-label { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; }
+  #interim {
+    min-height: 2.5rem; padding: 0.45rem 0.65rem; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--paper); color: var(--muted);
+    font-size: 1.05rem; line-height: 1.5;
+  }
+  #final { min-height: 8.5rem; font-size: 1.05rem; line-height: 1.55; }
+  body.is-te #final,
+  body.is-te #interim { font-family: "Nirmala UI", "Noto Sans Telugu", "Segoe UI", sans-serif; }
+  .path { font-size: 0.78rem; color: var(--muted); margin-top: 0.4rem; word-break: break-all; }
+  details { margin-top: 0.45rem; }
+  summary { cursor: pointer; font-weight: 600; color: var(--heading); font-size: 0.88rem; }
+  ul.cmds { columns: 2; padding-left: 1.1rem; margin: 0.45rem 0 0; font-size: 0.85rem; }
+  ul.cmds li { break-inside: avoid; margin: 0 0 0.3rem; }
+  code { font-family: Consolas, "Nirmala UI", monospace; }
+  .lang-row {
+    display: flex; gap: 0.55rem; align-items: end; flex-wrap: wrap; margin-top: 0;
+  }
+  .lang-row .field { flex: 1 1 10rem; margin-top: 0; }
+  .hidden { display: none !important; }
+  #diagList { margin: 0; padding-left: 1.1rem; font-size: 0.84rem; color: var(--muted); }
+  @media (max-width: 700px) { ul.cmds { columns: 1; } }
+</style>
+</head>
+<body class="is-te">
+<main>
+  <p class="crumb"><a href="./index.html">← Tools</a></p>
+  <p class="brand">Quantum Life University</p>
+  <h1>Voice type</h1>
+
+  <div class="mode-row" role="tablist" aria-label="Transcription engine">
+    <button type="button" class="is-active" data-mode="whisper" id="modeWhisper">Whisper (accurate)</button>
+    <button type="button" data-mode="browser" id="modeBrowser">Browser (quick)</button>
+  </div>
+
+  <div class="panel">
+    <div class="lang-row">
+      <div class="field">
+        <label for="lang">Language</label>
+        <select id="lang">
+          <option value="te-IN" selected>Telugu (te)</option>
+          <option value="en-IN">English — India (en)</option>
+          <option value="en-US">English — US (en)</option>
+          <option value="hi-IN">Hindi (hi)</option>
+        </select>
+      </div>
+      <div class="field whisper-only">
+        <label for="model">Whisper model</label>
+        <select id="model">
+          <option value="base">base (faster)</option>
+          <option value="small" selected>small (recommended)</option>
+          <option value="medium">medium (slower, better)</option>
+        </select>
+      </div>
+      <p class="hint" id="langHint" style="margin:0 0 0.35rem;flex:1 1 14rem">
+        Default Telugu. Whisper uses a QLU spiritual glossary for better Sanskrit / teaching words.
+      </p>
+    </div>
+
+    <div class="mic-row" style="margin-top:0.55rem">
+      <button class="mic" id="mic" type="button" aria-label="Microphone">🎤</button>
+      <div id="status">Choose Whisper or Browser, then use the mic.</div>
+      <div class="level-wrap">
+        <div class="level-track" aria-hidden="true"><div class="level-fill" id="levelFill"></div></div>
+        <div class="level-label" id="levelLabel">Mic level — speak and watch this bar move before stopping.</div>
+      </div>
+    </div>
+
+    <div class="field whisper-only" style="margin-top:0.55rem">
+      <label for="audioFile">Or upload audio/video</label>
+      <input id="audioFile" type="file" accept="audio/*,video/webm,video/mp4,.webm,.wav,.mp3,.m4a,.ogg">
+    </div>
+    <div class="row whisper-only" style="margin-top:0.45rem">
+      <button type="button" class="primary" id="transcribeUpload" disabled>Transcribe upload</button>
+      <span class="hint" id="whisperHint">First run downloads the model (one-time).</span>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:0.65rem">
+    <label for="interim" class="browser-only">Live buffer</label>
+    <div id="interim" class="browser-only" aria-live="polite"></div>
+    <div class="field">
+      <label for="final">Transcript</label>
+      <textarea id="final" spellcheck="false" placeholder="Transcript appears here…"></textarea>
+    </div>
+    <div class="row">
+      <button type="button" class="gold" id="copy">Copy</button>
+      <button type="button" class="primary" id="download">Download .txt</button>
+      <button type="button" id="clear">Clear</button>
+      <button type="button" id="stop">Stop</button>
+    </div>
+    <div class="path" id="path"></div>
+  </div>
+
+  <div class="panel" id="diagPanel" style="margin-top:0.65rem">
+    <p class="hint" style="margin:0 0 0.35rem"><strong>Setup check</strong></p>
+    <ul id="diagList"></ul>
+    <p class="note" style="margin-top:0.55rem">
+      <strong>Whisper</strong> is best for spiritual terms. Keep <code>python serve.py</code> running.
+      For published lectures, <a href="./captions.html">YouTube captions</a> are still ideal when available.
+    </p>
+  </div>
+
+  <details class="browser-only">
+    <summary>Spoken punctuation &amp; commands (browser mode)</summary>
+    <ul class="cmds" id="cmds"></ul>
+  </details>
+</main>
+<script>
+const STORAGE_LANG = "qlu-tools-voice-lang";
+const STORAGE_MODE = "qlu-tools-voice-mode";
+const STORAGE_MODEL = "qlu-tools-voice-model";
+const STORAGE_TEXT_PREFIX = "qlu-tools-voice-transcript:";
+
+const LANGUAGES = {
+  "te-IN": {
+    id: "te",
+    label: "Telugu",
+    filePrefix: "telugu-transcript",
+    listening: "Listening… speak in Telugu.",
+    idleBrowser: "Browser mode: click mic, then speak in Telugu.",
+    idleWhisper: "Whisper: hold/speak with mic, then wait for transcription — or upload a file.",
+    stopped: "Stopped.",
+    placeholder: "ఇక్కడ తెలుగు వస్తుంది…",
+    fontClass: "is-te",
+    whisperLang: "te",
+  },
+  "en-IN": {
+    id: "en-in",
+    label: "English (India)",
+    filePrefix: "english-transcript",
+    listening: "Listening… speak in English.",
+    idleBrowser: "Browser mode: click mic, then speak in English.",
+    idleWhisper: "Whisper: record with mic or upload audio.",
+    stopped: "Stopped.",
+    placeholder: "Transcript appears here…",
+    fontClass: "",
+    whisperLang: "en",
+  },
+  "en-US": {
+    id: "en-us",
+    label: "English (US)",
+    filePrefix: "english-transcript",
+    listening: "Listening… speak in English.",
+    idleBrowser: "Browser mode: click mic, then speak in English.",
+    idleWhisper: "Whisper: record with mic or upload audio.",
+    stopped: "Stopped.",
+    placeholder: "Transcript appears here…",
+    fontClass: "",
+    whisperLang: "en",
+  },
+  "hi-IN": {
+    id: "hi",
+    label: "Hindi",
+    filePrefix: "hindi-transcript",
+    listening: "Listening… speak in Hindi.",
+    idleBrowser: "Browser mode: click mic, then speak in Hindi.",
+    idleWhisper: "Whisper: record with mic or upload audio.",
+    stopped: "Stopped.",
+    placeholder: "यहाँ हिंदी आएगी…",
+    fontClass: "",
+    whisperLang: "hi",
+  },
+};
+
+const SHARED_COMMANDS = [
+  ["new paragraph", "\n\n"],
+  ["new line", "\n"],
+  ["full stop", "."],
+  ["period", "."],
+  ["question mark", "?"],
+  ["exclamation mark", "!"],
+  ["comma", ","],
+  ["semicolon", ";"],
+  ["colon", ":"],
+  ["hyphen", "-"],
+  ["dash", "-"],
+];
+
+const TE_COMMANDS = [
+  ["కొత్త పేరా", "\n\n"],
+  ["కొత్త వాక్యం", "\n"],
+  ["పూర్ణ విరామం", "."],
+  ["పూర్ణవిరామం", "."],
+  ["ఫుల్ స్టాప్", "."],
+  ["ప్రశ్నార్థకం", "?"],
+  ["ఆశ్చర్యార్థకం", "!"],
+  ["అల్పవిరామం", ","],
+  ["కామా", ","],
+];
+
+const TE_NUM = {
+  "౧౦": "౧౦", "10": "౧౦", "పది": "౧౦",
+  "౧": "౧", "1": "౧", "ఒకటి": "౧",
+  "౨": "౨", "2": "౨", "రెండు": "౨",
+  "౩": "౩", "3": "౩", "మూడు": "౩",
+  "౪": "౪", "4": "౪", "నాలుగు": "౪",
+  "౫": "౫", "5": "౫", "ఐదు": "౫",
+  "౬": "౬", "6": "౬", "ఆరు": "౬",
+  "౭": "౭", "7": "౭", "ఏడు": "౭",
+  "౮": "౮", "8": "౮", "ఎనిమిది": "౮",
+  "౯": "౯", "9": "౯", "తొమ్మిది": "౯",
+};
+
+const langEl = document.getElementById("lang");
+const modelEl = document.getElementById("model");
+const micBtn = document.getElementById("mic");
+const statusEl = document.getElementById("status");
+const interimEl = document.getElementById("interim");
+const finalEl = document.getElementById("final");
+const pathEl = document.getElementById("path");
+const cmdList = document.getElementById("cmds");
+const audioFileEl = document.getElementById("audioFile");
+const transcribeUploadBtn = document.getElementById("transcribeUpload");
+const modeWhisperBtn = document.getElementById("modeWhisper");
+const modeBrowserBtn = document.getElementById("modeBrowser");
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+let mode = "whisper";
+let listening = false;
+let rec = null;
+let mediaRecorder = null;
+let mediaStream = null;
+let recordedChunks = [];
+let whisperBusy = false;
+let levelRaf = 0;
+let audioCtx = null;
+let analyser = null;
+let lastInterim = "";
+const levelFill = document.getElementById("levelFill");
+const levelLabel = document.getElementById("levelLabel");
+
+function currentLang() {
+  return LANGUAGES[langEl.value] || LANGUAGES["te-IN"];
+}
+
+function storageKey() {
+  return STORAGE_TEXT_PREFIX + (currentLang().id || "te");
+}
+
+function setStatus(text) {
+  statusEl.textContent = text;
+}
+
+function commandsForLang() {
+  if (langEl.value === "te-IN") return TE_COMMANDS.concat(SHARED_COMMANDS);
+  return SHARED_COMMANDS.slice();
+}
+
+function refreshCommandHelp() {
+  cmdList.innerHTML = "";
+  for (const [phrase, repl] of commandsForLang()) {
+    const li = document.createElement("li");
+    const shown = repl === "\n" ? "new line" : repl === "\n\n" ? "new paragraph" : repl;
+    li.innerHTML = "<code>" + phrase + "</code> → " + shown;
+    cmdList.appendChild(li);
+  }
+}
+
+function applyCommands(raw) {
+  let text = " " + raw.replace(/\s+/g, " ").trim() + " ";
+  const phrases = commandsForLang().slice().sort((a, b) => b[0].length - a[0].length);
+  for (const [phrase, repl] of phrases) {
+    const esc = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    text = text.replace(new RegExp(" " + esc + " ", "gi"), " " + repl + " ");
+  }
+  if (langEl.value === "te-IN") {
+    const numAlt = Object.keys(TE_NUM).sort((a, b) => b.length - a.length).join("|");
+    text = text.replace(new RegExp(" క్రమ సంఖ్య (" + numAlt + ") ", "g"), (_, n) => {
+      return "\n" + (TE_NUM[n] || n) + ". ";
+    });
+  }
+  return text
+    .replace(/[ \t]+([,.;:?!%])/g, "$1")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/^[ \t]+|[ \t]+$/g, "");
+}
+
+let saveTimer = 0;
+function publish() {
+  try {
+    localStorage.setItem(storageKey(), finalEl.value);
+  } catch (_) {}
+}
+
+finalEl.addEventListener("input", () => {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(publish, 250);
+});
+
+function appendFinal(piece) {
+  if (!piece) return;
+  let next = finalEl.value;
+  const stick = /^[,.;:?!%]/.test(piece);
+  if (next && !/\s$/.test(next) && !piece.startsWith("\n") && !stick) next += " ";
+  finalEl.value = next + piece;
+  finalEl.scrollTop = finalEl.scrollHeight;
+  publish();
+}
+
+function setMode(next) {
+  mode = next === "browser" ? "browser" : "whisper";
+  modeWhisperBtn.classList.toggle("is-active", mode === "whisper");
+  modeBrowserBtn.classList.toggle("is-active", mode === "browser");
+  document.querySelectorAll(".whisper-only").forEach((el) => {
+    el.classList.toggle("hidden", mode !== "whisper");
+  });
+  document.querySelectorAll(".browser-only").forEach((el) => {
+    el.classList.toggle("hidden", mode !== "browser");
+  });
+  try {
+    localStorage.setItem(STORAGE_MODE, mode);
+  } catch (_) {}
+  stopAll();
+  applyLanguageUi({ reloadText: false });
+  refreshDiagnostics();
+}
+
+async function refreshDiagnostics() {
+  const list = document.getElementById("diagList");
+  const rows = [];
+  const secure = Boolean(window.isSecureContext);
+  const supported = Boolean(SpeechRecognition);
+  const online = navigator.onLine !== false;
+  rows.push(secure
+    ? "Secure context OK (localhost / HTTPS)."
+    : "Open via python serve.py — not as a local file.");
+  if (mode === "browser") {
+    rows.push(supported ? "Browser Speech API available." : "Browser Speech API missing — use Chrome/Edge or Whisper.");
+    rows.push(online ? "Network OK for browser recognition." : "Offline — browser mode needs internet.");
+  } else {
+    rows.push("Whisper runs on your PC via the Tools server (no Google cloud speech).");
+    try {
+      const res = await fetch("/api/whisper/status");
+      const data = await res.json();
+      if (data.fasterWhisper) {
+        rows.push("faster-whisper installed (" + (data.fasterWhisperDetail || "ok") + ").");
+      } else {
+        rows.push("faster-whisper missing — run: python -m pip install faster-whisper");
+      }
+      rows.push(data.ffmpeg ? "ffmpeg available for audio decode." : "ffmpeg missing — install requirements.txt");
+    } catch (_) {
+      rows.push("Tools server not reachable — start with python serve.py / start.cmd");
+    }
+  }
+  rows.push("Language: " + (langEl.value || "te-IN") + ".");
+  list.innerHTML = rows.map((r) => "<li>" + r + "</li>").join("");
+}
+
+function stopLevelMeter() {
+  if (levelRaf) cancelAnimationFrame(levelRaf);
+  levelRaf = 0;
+  if (levelFill) levelFill.style.width = "0%";
+  if (analyser) {
+    try { analyser.disconnect(); } catch (_) {}
+    analyser = null;
+  }
+  if (audioCtx) {
+    try { audioCtx.close(); } catch (_) {}
+    audioCtx = null;
+  }
+}
+
+function startLevelMeter(stream) {
+  stopLevelMeter();
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioCtx.createMediaStreamSource(stream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 512;
+    source.connect(analyser);
+    const data = new Uint8Array(analyser.fftSize);
+    const tick = () => {
+      if (!analyser) return;
+      analyser.getByteTimeDomainData(data);
+      let sum = 0;
+      for (let i = 0; i < data.length; i++) {
+        const v = (data[i] - 128) / 128;
+        sum += v * v;
+      }
+      const rms = Math.sqrt(sum / data.length);
+      const pct = Math.min(100, Math.max(2, Math.round(rms * 280)));
+      if (levelFill) levelFill.style.width = pct + "%";
+      if (levelLabel) {
+        levelLabel.textContent =
+          pct < 8
+            ? "Mic is very quiet — move closer or raise Windows mic volume."
+            : "Mic level OK — keep speaking.";
+      }
+      levelRaf = requestAnimationFrame(tick);
+    };
+    tick();
+  } catch (_) {
+    if (levelLabel) levelLabel.textContent = "Mic level meter unavailable in this browser.";
+  }
+}
+
+function destroyBrowserRec() {
+  if (!rec) return;
+  try {
+    rec.onstart = null;
+    rec.onresult = null;
+    rec.onerror = null;
+    rec.onend = null;
+    rec.stop();
+  } catch (_) {}
+  rec = null;
+}
+
+function armBrowser() {
+  destroyBrowserRec();
+  if (!SpeechRecognition) {
+    setStatus("Browser speech needs Chrome/Edge — switch to Whisper for accuracy.");
+    return;
+  }
+  if (!window.isSecureContext) {
+    setStatus("Open via python serve.py (http://127.0.0.1:8765/Tools/voice-type.html).");
+    return;
+  }
+  rec = new SpeechRecognition();
+  rec.lang = langEl.value || "te-IN";
+  // continuous:false + restart is more reliable for te-IN than continuous:true
+  rec.continuous = false;
+  rec.interimResults = true;
+  rec.maxAlternatives = 1;
+
+  rec.onstart = () => {
+    micBtn.classList.add("on");
+    setStatus(currentLang().listening);
+  };
+
+  rec.onresult = (event) => {
+    let interim = "";
+    const finals = [];
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const said = event.results[i][0].transcript || "";
+      if (event.results[i].isFinal) finals.push(said);
+      else interim += said;
+    }
+    lastInterim = interim.trim();
+    interimEl.textContent = lastInterim || "…";
+    if (finals.length) {
+      lastInterim = "";
+      interimEl.textContent = "";
+      appendFinal(applyCommands(finals.join(" ")));
+      setStatus("Captured — keep speaking, or click Stop.");
+    }
+  };
+
+  rec.onerror = (ev) => {
+    if (ev.error === "aborted") return;
+    if (ev.error === "no-speech") {
+      setStatus("Listening… no speech yet — speak closer to the mic.");
+      return;
+    }
+    if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
+      listening = false;
+      micBtn.classList.remove("on");
+      stopLevelMeter();
+      setStatus("Allow the microphone for this site, then try again.");
+      return;
+    }
+    if (ev.error === "network") {
+      listening = false;
+      micBtn.classList.remove("on");
+      stopLevelMeter();
+      setStatus("Network error in browser mode — use Whisper instead.");
+    }
+  };
+
+  rec.onend = () => {
+    if (!listening) {
+      micBtn.classList.remove("on");
+      return;
+    }
+    // Restart immediately for the next utterance.
+    setTimeout(() => {
+      if (!listening || !rec) return;
+      try { rec.start(); } catch (_) {}
+    }, 120);
+  };
+}
+
+async function startBrowser() {
+  if (!window.isSecureContext) {
+    setStatus("Open via python serve.py — not as a file.");
+    return;
+  }
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    startLevelMeter(mediaStream);
+  } catch (_) {
+    setStatus("Microphone permission denied.");
+    return;
+  }
+  if (!rec) armBrowser();
+  if (!rec) return;
+  listening = true;
+  lastInterim = "";
+  try {
+    rec.start();
+  } catch (_) {
+    armBrowser();
+    if (!rec) return;
+    try { rec.start(); } catch (_) {
+      listening = false;
+      setStatus("Could not start browser mic.");
+    }
+  }
+}
+
+function stopBrowser() {
+  listening = false;
+  micBtn.classList.remove("on");
+  if (lastInterim) {
+    appendFinal(applyCommands(lastInterim));
+    lastInterim = "";
+    interimEl.textContent = "";
+  }
+  if (rec) {
+    try { rec.stop(); } catch (_) {}
+  }
+  if (mediaStream) {
+    mediaStream.getTracks().forEach((t) => t.stop());
+    mediaStream = null;
+  }
+  stopLevelMeter();
+}
+
+function pickRecorderMime() {
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/ogg;codecs=opus",
+    "audio/mp4",
+  ];
+  for (const type of candidates) {
+    if (window.MediaRecorder?.isTypeSupported?.(type)) return type;
+  }
+  return "";
+}
+
+async function startWhisperRecording() {
+  if (whisperBusy) return;
+  if (!navigator.mediaDevices?.getUserMedia) {
+    setStatus("This browser cannot record audio. Upload a file instead.");
+    return;
+  }
+  recordedChunks = [];
+  // Avoid heavy browser processing that can silence some Windows mics.
+  mediaStream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: true,
+      channelCount: 1,
+    },
+  });
+  startLevelMeter(mediaStream);
+  const mime = pickRecorderMime();
+  mediaRecorder = mime
+    ? new MediaRecorder(mediaStream, { mimeType: mime })
+    : new MediaRecorder(mediaStream);
+  mediaRecorder.ondataavailable = (ev) => {
+    if (ev.data && ev.data.size > 0) recordedChunks.push(ev.data);
+  };
+  mediaRecorder.onstop = async () => {
+    micBtn.classList.remove("on");
+    listening = false;
+    stopLevelMeter();
+    const type = mediaRecorder.mimeType || mime || "audio/webm";
+    const blob = new Blob(recordedChunks, { type });
+    recordedChunks = [];
+    if (mediaStream) {
+      mediaStream.getTracks().forEach((t) => t.stop());
+      mediaStream = null;
+    }
+    if (!blob.size || blob.size < 1500) {
+      setStatus("Recording too short/empty — speak 3–5 seconds while the level bar moves, then stop.");
+      return;
+    }
+    const ext = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
+    setStatus("Uploading " + Math.round(blob.size / 1024) + " KB to Whisper…");
+    await sendToWhisper(blob, "recording." + ext);
+  };
+  mediaRecorder.start(250);
+  listening = true;
+  micBtn.classList.add("on");
+  setStatus("Recording… watch the level bar, speak clearly, then click mic to stop.");
+}
+
+function stopWhisperRecording() {
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    setStatus("Stopping… converting audio, then Whisper…");
+    try {
+      if (mediaRecorder.state === "recording") mediaRecorder.requestData();
+    } catch (_) {}
+    mediaRecorder.stop();
+  } else {
+    listening = false;
+    micBtn.classList.remove("on");
+    stopLevelMeter();
+  }
+}
+
+async function sendToWhisper(blobOrFile, filename) {
+  whisperBusy = true;
+  transcribeUploadBtn.disabled = true;
+  micBtn.disabled = true;
+  setStatus("Whisper is working… first run may download the model (can take a few minutes).");
+  try {
+    const body = new FormData();
+    body.append("audio", blobOrFile, filename || "audio.webm");
+    body.append("lang", currentLang().whisperLang || "te");
+    body.append("model", modelEl.value || "small");
+    const res = await fetch("/api/whisper", { method: "POST", body });
+    let data;
+    try {
+      data = await res.json();
+    } catch (_) {
+      throw new Error("Bad response from Tools server — is python serve.py running?");
+    }
+    if (!data.ok) throw new Error(data.error || "Whisper failed");
+    const text = (data.text || "").trim();
+    if (!text) {
+      setStatus(
+        "Whisper heard no speech (empty result). Speak louder for 5+ seconds with the level bar moving, or upload a clearer .wav/.mp3."
+      );
+      return;
+    }
+    finalEl.value = (finalEl.value ? finalEl.value.replace(/\s*$/, "\n\n") : "") + text;
+    finalEl.scrollTop = finalEl.scrollHeight;
+    publish();
+    setStatus(
+      (data.message || "Whisper done.") +
+        " · " +
+        text.length +
+        " chars" +
+        (data.segmentCount != null ? " · " + data.segmentCount + " segments" : "")
+    );
+    if (data.downloadUrl) {
+      pathEl.innerHTML =
+        'Saved on server: <a class="dl" href="' +
+        data.downloadUrl +
+        '" download="' +
+        (data.filename || "transcript.txt") +
+        '">' +
+        (data.filename || "Download") +
+        "</a>";
+    }
+  } catch (e) {
+    setStatus(e.message || String(e));
+    refreshDiagnostics();
+  } finally {
+    whisperBusy = false;
+    micBtn.disabled = false;
+    transcribeUploadBtn.disabled = !audioFileEl.files?.length;
+  }
+}
+
+function stopAll() {
+  if (mode === "browser") stopBrowser();
+  else if (listening) stopWhisperRecording();
+  else {
+    listening = false;
+    micBtn.classList.remove("on");
+    stopLevelMeter();
+  }
+  publish();
+}
+
+async function onMicClick() {
+  if (whisperBusy) return;
+  if (mode === "browser") {
+    if (listening) {
+      stopBrowser();
+      setStatus(currentLang().stopped);
+    } else {
+      await startBrowser();
+    }
+    return;
+  }
+  if (listening) stopWhisperRecording();
+  else {
+    try {
+      await startWhisperRecording();
+    } catch (e) {
+      setStatus(e.message || "Microphone permission denied.");
+    }
+  }
+}
+
+function applyLanguageUi(opts = {}) {
+  const meta = currentLang();
+  document.body.classList.toggle("is-te", meta.fontClass === "is-te");
+  document.documentElement.lang = langEl.value.slice(0, 2);
+  finalEl.placeholder = meta.placeholder;
+  if (!pathEl.querySelector("a")) {
+    pathEl.textContent =
+      "Draft: browser localStorage (" + meta.label + ") · Download .txt to export.";
+  }
+  refreshCommandHelp();
+  if (!listening && !whisperBusy) {
+    setStatus(mode === "whisper" ? meta.idleWhisper : meta.idleBrowser);
+  }
+  try {
+    localStorage.setItem(STORAGE_LANG, langEl.value);
+    localStorage.setItem(STORAGE_MODEL, modelEl.value);
+  } catch (_) {}
+  if (opts.reloadText !== false) {
+    try {
+      finalEl.value = localStorage.getItem(storageKey()) || "";
+    } catch (_) {
+      finalEl.value = "";
+    }
+  }
+  if (mode === "browser") armBrowser();
+}
+
+modeWhisperBtn.addEventListener("click", () => setMode("whisper"));
+modeBrowserBtn.addEventListener("click", () => setMode("browser"));
+langEl.addEventListener("change", () => {
+  const was = listening;
+  stopAll();
+  applyLanguageUi({ reloadText: true });
+  refreshDiagnostics();
+  if (was && mode === "browser") startBrowser();
+});
+modelEl.addEventListener("change", () => {
+  try { localStorage.setItem(STORAGE_MODEL, modelEl.value); } catch (_) {}
+});
+micBtn.addEventListener("click", () => void onMicClick());
+document.getElementById("stop").addEventListener("click", () => {
+  stopAll();
+  setStatus(currentLang().stopped);
+});
+document.getElementById("copy").addEventListener("click", async () => {
+  await navigator.clipboard.writeText(finalEl.value);
+  setStatus("Copied.");
+});
+document.getElementById("download").addEventListener("click", () => {
+  const blob = new Blob([finalEl.value], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+  a.href = url;
+  a.download = currentLang().filePrefix + "-" + stamp + ".txt";
+  a.click();
+  URL.revokeObjectURL(url);
+  setStatus("Download started.");
+});
+document.getElementById("clear").addEventListener("click", () => {
+  if (finalEl.value && !window.confirm("Clear transcript?")) return;
+  finalEl.value = "";
+  interimEl.textContent = "";
+  publish();
+  setStatus("Cleared.");
+});
+audioFileEl.addEventListener("change", () => {
+  transcribeUploadBtn.disabled = !audioFileEl.files?.length || whisperBusy;
+});
+transcribeUploadBtn.addEventListener("click", async () => {
+  const file = audioFileEl.files?.[0];
+  if (!file) return;
+  await sendToWhisper(file, file.name || "upload.webm");
+});
+
+try {
+  const savedLang = localStorage.getItem(STORAGE_LANG);
+  if (savedLang && LANGUAGES[savedLang]) langEl.value = savedLang;
+  const savedModel = localStorage.getItem(STORAGE_MODEL);
+  if (savedModel) modelEl.value = savedModel;
+  const savedMode = localStorage.getItem(STORAGE_MODE);
+  if (savedMode === "browser" || savedMode === "whisper") mode = savedMode;
+} catch (_) {}
+
+try {
+  const legacy = localStorage.getItem("qlu-swadhyaya-te-voice-transcript");
+  const nextKey = STORAGE_TEXT_PREFIX + "te";
+  if (legacy && !localStorage.getItem(nextKey)) localStorage.setItem(nextKey, legacy);
+} catch (_) {}
+
+setMode(mode);
+applyLanguageUi({ reloadText: true });
+refreshDiagnostics();
+window.addEventListener("online", refreshDiagnostics);
+window.addEventListener("offline", refreshDiagnostics);
+</script>
+</body>
+</html>

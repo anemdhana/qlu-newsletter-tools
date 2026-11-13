@@ -44,8 +44,8 @@ Starts the server and opens **http://127.0.0.1:8765/Tools/index.html** so you ca
 |------|--------|
 | **Download YouTube captions** | Video or playlist → `.txt` / zip in `out/` |
 | **Extract frame at time** | Timestamp still → image in `out/` |
-
-Also in the hub (browser-only): Telugu speech→text, newsletter beautify.
+| **Voice type** | Whisper (+ QLU glossary) mic/upload, or quick browser speech — Telugu default |
+| **Beautify / Publication prompts** | ChatGPT prompts for newsletter wording / full articles |
 
 ```powershell
 # or (after pip install -r requirements.txt)
@@ -63,6 +63,17 @@ python scripts/download_youtube_captions.py VIDEO_ID --lang te
 python scripts/download_youtube_captions.py --playlist PLxxxx --lang te -o out\playlist
 python scripts/download_youtube_captions.py VIDEO_ID --lang te --engine yt-dlp
 ```
+
+### Whisper transcription (Voice type — accurate)
+
+Needs **faster-whisper** + **ffmpeg** (from `requirements.txt`). First run downloads the model.
+
+```powershell
+python scripts/whisper_transcribe.py path\to\audio.webm --lang te --model small
+python scripts/whisper_transcribe.py path\to\lecture.mp3 --lang en --model medium
+```
+
+UI: **Tools → Voice type → Whisper** — record with the mic or upload audio. Glossary priming improves spiritual / Sanskrit spellings.
 
 ### Extract frame at time (same as app Tools)
 

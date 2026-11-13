@@ -13,8 +13,8 @@ echo.
 echo  Test from the hub:
 echo    1. Download YouTube captions
 echo    2. Extract frame at time  ^(needs ffmpeg via requirements.txt^)
-echo    3. Telugu speech to text
-echo    4. Beautify text / newsletter
+echo    3. Voice type / Whisper  ^(Telugu default; glossary-aware^)
+echo    4. Beautify text / Publication prompts
 echo.
 echo  Keep this window open. Ctrl+C stops the server.
 echo.
