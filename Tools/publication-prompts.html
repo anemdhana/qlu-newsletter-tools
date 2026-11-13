@@ -75,6 +75,13 @@
             <span>Telugu spiritual story articles — narrative + deeper meaning.</span>
           </div>
         </label>
+        <label class="choice" for="familyJnanodayam">
+          <input id="familyJnanodayam" type="radio" name="family" value="jnanodayam">
+          <div>
+            <strong>Jnanodayam day JSON</strong>
+            <span>Telugu day-wise JSON sections for the Astro reader (day-NN-te.json).</span>
+          </div>
+        </label>
       </div>
 
       <div class="field">
@@ -118,8 +125,12 @@ function family() {
 function currentMeta() {
   const pack = window.QLU_PUBLICATION_PROMPTS || {};
   const batch = modeEl.value === "batch";
-  if (family() === "stories") {
+  const fam = family();
+  if (fam === "stories") {
     return pack[batch ? "stories-batch" : "stories"] || null;
+  }
+  if (fam === "jnanodayam") {
+    return pack[batch ? "jnanodayam-batch" : "jnanodayam"] || null;
   }
   return pack[batch ? "batch" : "single"] || null;
 }
@@ -138,6 +149,12 @@ function refresh() {
       "Stories and Deeper meanings",
       "attach one transcript/captions .txt",
       "upload the transcripts ZIP"
+    );
+  } else if (family() === "jnanodayam") {
+    hintEl.textContent = batchHint(
+      "Jnanodayam day JSON",
+      "attach one day transcript (.txt/.srt/.vtt)",
+      "upload a ZIP of day transcripts → one day-NN-te.json each"
     );
   } else {
     hintEl.textContent = batchHint(
@@ -215,6 +232,7 @@ try {
   if (raw) {
     const d = JSON.parse(raw);
     if (d.family === "stories") document.getElementById("familyStories").checked = true;
+    if (d.family === "jnanodayam") document.getElementById("familyJnanodayam").checked = true;
     if (d.mode === "batch" || d.mode === "single") modeEl.value = d.mode;
   }
 } catch (_) {}
