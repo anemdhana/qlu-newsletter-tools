@@ -47,19 +47,21 @@
     <div id="portrait-opts" class="grid" style="gap:0.55rem; margin-top:0.55rem; display:none">
       <div>
         <label for="startTime">Start time</label>
-        <input id="startTime" type="text" value="00:45:00" placeholder="e.g. 00:45:00" title="Begin sampling here" autocomplete="off">
+        <input id="startTime" type="text" value="00:50:00" placeholder="e.g. 00:50:00" title="Begin sampling here" autocomplete="off">
+        <p class="hint">Jnanodayam tip: start around <code>00:50:00</code></p>
       </div>
       <div>
         <label for="endTime">End time</label>
-        <input id="endTime" type="text" value="01:15:00" placeholder="e.g. 01:15:00" title="Stop sampling here — keeps the job short" autocomplete="off">
+        <input id="endTime" type="text" value="01:05:00" placeholder="e.g. 01:05:00" title="Stop sampling here — keeps the job short" autocomplete="off">
+        <p class="hint">Jnanodayam tip: end around <code>01:05:00</code> (~15&nbsp;min window)</p>
       </div>
       <div>
         <label for="top">Keep top</label>
-        <input id="top" type="number" min="1" max="10" value="1" title="How many best frames per video">
+        <input id="top" type="number" min="1" max="10" value="7" title="How many best frames per video">
       </div>
       <div>
         <label for="intervalMin">Sample every (min)</label>
-        <input id="intervalMin" type="number" min="0.5" max="30" step="0.5" value="1" title="Minutes between sampled frames">
+        <input id="intervalMin" type="number" min="0.5" max="30" step="0.5" value="2" title="Minutes between sampled frames">
       </div>
       <div>
         <label for="format2">Picture type</label>
@@ -156,10 +158,10 @@
       body: JSON.stringify({
         video,
         playlist,
-        startTime: document.getElementById("startTime").value.trim() || "00:45:00",
-        endTime: document.getElementById("endTime").value.trim() || "01:15:00",
-        top: Number(document.getElementById("top").value) || 1,
-        intervalMin: Number(document.getElementById("intervalMin").value) || 1,
+        startTime: document.getElementById("startTime").value.trim() || "00:50:00",
+        endTime: document.getElementById("endTime").value.trim() || "01:05:00",
+        top: Number(document.getElementById("top").value) || 7,
+        intervalMin: Number(document.getElementById("intervalMin").value) || 2,
         format: document.getElementById("format2").value,
       }),
     });

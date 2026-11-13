@@ -141,9 +141,10 @@ def video_duration_seconds(watch_url: str, yt_dlp_cmd: list[str]) -> float:
     raise RuntimeError(f"Bad duration from yt-dlp: {lines[0]!r}") from e
 
 
-DEFAULT_START_SECONDS = 45 * 60  # 00:45:00 — skip early lecture content by default
-DEFAULT_END_SECONDS = 75 * 60  # 01:15:00 — stop after a ~30 min window
-DEFAULT_INTERVAL_SECONDS = 60.0  # sample every 1 minute
+DEFAULT_START_SECONDS = 50 * 60  # 00:50:00 — Jnanodayam talk window start
+DEFAULT_END_SECONDS = 65 * 60  # 01:05:00 — ~15 min window
+DEFAULT_INTERVAL_SECONDS = 120.0  # sample every 2 minutes
+DEFAULT_TOP = 7
 
 
 def _hms(seconds: float) -> str:
@@ -535,7 +536,7 @@ def pick_best_portraits(
   skip_start: float = DEFAULT_START_SECONDS,
   end_at: float | None = DEFAULT_END_SECONDS,
   skip_end: float = 15.0,
-  top: int = 3,
+  top: int = DEFAULT_TOP,
   fmt: str = "jpg",
   keep_work: bool = False,
   write_report: bool = True,
@@ -641,7 +642,7 @@ def pick_playlist_portraits(
   skip_start: float = DEFAULT_START_SECONDS,
   end_at: float | None = DEFAULT_END_SECONDS,
   skip_end: float = 15.0,
-  top: int = 1,
+  top: int = DEFAULT_TOP,
   fmt: str = "jpg",
   max_videos: int = 80,
 ) -> dict:
@@ -770,8 +771,8 @@ def main() -> None:
   parser.add_argument(
     "--every-min",
     type=float,
-    default=1.0,
-    help="Minutes between sampled frames (default: 1)",
+    default=2.0,
+    help="Minutes between sampled frames (default: 2)",
   )
   parser.add_argument(
     "--interval",
@@ -783,14 +784,14 @@ def main() -> None:
     "--start",
     "--skip-start",
     dest="start",
-    default="00:45:00",
-    help="Start sampling at this time (default: 00:45:00). Accepts HH:MM:SS or MM:SS.",
+    default="00:50:00",
+    help="Start sampling at this time (default: 00:50:00, Jnanodayam tip). Accepts HH:MM:SS or MM:SS.",
   )
   parser.add_argument(
     "--end",
     dest="end",
-    default="01:15:00",
-    help="Stop sampling at this time (default: 01:15:00). Use empty / 'end' for full remainder.",
+    default="01:05:00",
+    help="Stop sampling at this time (default: 01:05:00, Jnanodayam tip). Use empty / 'end' for full remainder.",
   )
   parser.add_argument(
     "--skip-end",
@@ -798,7 +799,7 @@ def main() -> None:
     default=15.0,
     help="Extra seconds to trim from the video end when --end is omitted (default: 15)",
   )
-  parser.add_argument("--top", type=int, default=3, help="How many winners to keep per video (default: 3)")
+  parser.add_argument("--top", type=int, default=DEFAULT_TOP, help="How many winners to keep per video (default: 7)")
   parser.add_argument("--format", choices=("jpg", "png"), default="jpg")
   parser.add_argument("--max-videos", type=int, default=80, help="Playlist cap (default: 80)")
   parser.add_argument(
@@ -811,14 +812,14 @@ def main() -> None:
 
   start_seconds = parse_timestamp(str(args.start).strip())
   if not (start_seconds == start_seconds) or start_seconds < 0:
-    raise SystemExit("Enter a valid --start time (e.g. 00:45:00).")
+    raise SystemExit("Enter a valid --start time (e.g. 00:50:00).")
   end_raw = str(args.end).strip().lower() if args.end is not None else ""
   if end_raw in ("", "end", "inf", "none"):
     end_seconds: float | None = None
   else:
     end_seconds = parse_timestamp(str(args.end).strip())
     if not (end_seconds == end_seconds) or end_seconds < 0:
-      raise SystemExit("Enter a valid --end time (e.g. 01:15:00).")
+      raise SystemExit("Enter a valid --end time (e.g. 01:05:00).")
     if end_seconds <= start_seconds:
       raise SystemExit("--end must be after --start.")
   if args.interval is not None:

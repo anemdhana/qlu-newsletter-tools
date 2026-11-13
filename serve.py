@@ -228,7 +228,7 @@ def run_pick_portrait(payload: dict) -> dict:
   video = (payload.get("video") or "").strip()
   fmt = "png" if payload.get("format") == "png" else "jpg"
   try:
-    top = max(1, min(10, int(payload.get("top") or 1)))
+    top = max(1, min(10, int(payload.get("top") or 7)))
   except (TypeError, ValueError) as e:
     raise ValueError("top must be an integer 1–10.") from e
   from extract_youtube_frame import parse_timestamp
@@ -240,14 +240,14 @@ def run_pick_portrait(payload: dict) -> dict:
     try:
       interval = float(raw_min) * 60.0
     except (TypeError, ValueError) as e:
-      raise ValueError("intervalMin must be minutes (e.g. 1).") from e
+      raise ValueError("intervalMin must be minutes (e.g. 2).") from e
   elif payload.get("interval") is not None and str(payload.get("interval")).strip() != "":
     try:
       interval = float(payload.get("interval"))
     except (TypeError, ValueError) as e:
       raise ValueError("interval must be a number of seconds.") from e
   else:
-    interval = 60.0  # default: every 1 minute
+    interval = 120.0  # default: every 2 minutes
   if interval <= 0 or interval > 30 * 60:
     raise ValueError("Sample interval must be between 0 and 30 minutes.")
 
@@ -265,16 +265,16 @@ def run_pick_portrait(payload: dict) -> dict:
       raise ValueError(f"Enter a valid {label} (e.g. 00:45:00).")
     return value
 
-  # Window defaults: 00:45:00 → 01:15:00 (~30 min) so jobs finish quickly.
+  # Window defaults: Jnanodayam tip 00:50:00 → 01:05:00 (~15 min).
   skip_start = _parse_clock(
     payload.get("startTime") if payload.get("startTime") not in (None, "") else payload.get("skipStart"),
-    default=45 * 60,
+    default=50 * 60,
     label="start time",
   )
   assert skip_start is not None
   end_at = _parse_clock(
     payload.get("endTime"),
-    default=75 * 60,
+    default=65 * 60,
     label="end time",
   )
   if end_at is not None and end_at <= skip_start:
