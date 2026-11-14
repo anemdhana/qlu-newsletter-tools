@@ -2,8 +2,10 @@
 # -*- coding: utf-8 -*-
 """
 Download theme frame images from a shared Google Drive folder and attach them
-to QLU News Issue → Themes → themeItems.image (skips items that already have
-an image unless --replace-existing).
+to QLU News Issue → Themes → themeItems.image + themeItems.images gallery.
+
+All frames that match a theme (video id / day / title) are attached. The primary
+card image is chosen with --pick (first|last|largest).
 
 Requires: pip install gdown  (listed in requirements.txt)
 
@@ -12,9 +14,9 @@ Example:
   python scripts/import_theme_images_gdrive.py --dry-run
 
   python scripts/import_theme_images_gdrive.py ^
-    --folder-url "https://drive.google.com/drive/folders/1JlcjTqqFHliDlc5TibjmJ6Viq7J_pbJF" ^
+    --folder-url "https://drive.google.com/drive/folders/1lWK1kKW5eb1Zy3ZOfxjKJYWTMC4-cQLX" ^
     --month 2026-11 ^
-    --heading-needle "గణేశ"
+    --heading-needle "నవరాత్ర"
 
 Auth (same as import_theme_readmore.py):
   PAYLOAD_URL, SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD
@@ -41,8 +43,9 @@ from import_theme_readmore_gdrive import (  # noqa: E402
   extract_folder_id,
 )
 
+# Devi Navratri pack (markdown + stills) — override with --folder-url as needed
 DEFAULT_FOLDER_URL = (
-  "https://drive.google.com/drive/folders/1JlcjTqqFHliDlc5TibjmJ6Viq7J_pbJF"
+  "https://drive.google.com/drive/folders/1lWK1kKW5eb1Zy3ZOfxjKJYWTMC4-cQLX"
 )
 
 
@@ -82,13 +85,13 @@ def main() -> int:
   ap.add_argument(
     "--replace-existing",
     action="store_true",
-    help="Replace theme items that already have an image",
+    help="Replace theme item galleries instead of merging",
   )
   ap.add_argument(
     "--pick",
     choices=("first", "last", "largest"),
     default="first",
-    help="When multiple frames share a video/day, which to keep (default: earliest timestamp)",
+    help="Which matched frame becomes the primary card image (default: earliest timestamp)",
   )
   ap.add_argument(
     "--skip-download",
@@ -112,7 +115,7 @@ def main() -> int:
   if not files:
     raise SystemExit(f"No image files found under {dest}")
 
-  print("Selected image files:")
+  print(f"Selected image files ({len(files)}):")
   for path in files:
     print(f"  · {path.name}")
 

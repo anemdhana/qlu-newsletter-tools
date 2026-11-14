@@ -98,6 +98,16 @@ python scripts/pull_latest_tools.py
 python pull_latest_tools.py --dir "$env:USERPROFILE\GitHub"
 ```
 
+### Install Git + pull latest news + start Astro
+
+Same helper for [`quantum-life-university-news`](https://github.com/anemdhana/quantum-life-university-news): clone/pull into `%USERPROFILE%\GitHub\quantum-life-university-news`, then launches **`dev-web.cmd`** (Astro only — CMS must already be running).
+
+```powershell
+python scripts/pull_latest_news.py
+python scripts/pull_latest_news.py --no-start
+python scripts/pull_latest_news.py --dir "$env:USERPROFILE\GitHub"
+```
+
 ### Pick best portrait / smile frames
 
 Clone of the frame extract flow, but runs three steps: **sample** → **score** (face + smile via OpenCV) → **keep top picks**. Filenames match Extract frame: `{title}[{videoId}]_00h01m30s.jpg`.
@@ -135,16 +145,16 @@ CMS must be running (`http://localhost:3000`).
 
 ### Import theme frame images → Payload CMS
 
-Downloads YouTube stills from Drive (names like `{title}[{videoId}]_00h59m51s.jpg`) and sets each matching Themes entry’s `image`. Match order: **video id → day number → title tokens**. When several frames share a day/video, keeps the earliest timestamp (`--pick last|largest` to change).
+Downloads stills from Drive (names like `{title}[{videoId}]_00h59m51s.jpg`) and attaches them to matching Themes entries. Match order: **video id → day number → title tokens**. **All** matches for an item go into `themeItems.images` (gallery); primary `themeItems.image` follows `--pick first|last|largest`.
 
 ```powershell
 python scripts/import_theme_images_gdrive.py --dry-run
-python scripts/import_theme_images_gdrive.py --month 2026-11 --heading-needle "గణేశ"
+python scripts/import_theme_images_gdrive.py --month 2026-11 --heading-needle "నవరాత్ర"
 ```
 
-Default folder: [Ganesha frame stills](https://drive.google.com/drive/folders/1JlcjTqqFHliDlc5TibjmJ6Viq7J_pbJF). Local-only: `python scripts/import_theme_images.py --folder out\frames --month 2026-11`.
+Default folder: [Devi Navratri Drive pack](https://drive.google.com/drive/folders/1lWK1kKW5eb1Zy3ZOfxjKJYWTMC4-cQLX). Local-only: `python scripts/import_theme_images.py --folder out\frames --month 2026-11`.
 
-CMS must already expose `themeItems.image` (QLU News Issues schema). Skips items that already have an image unless `--replace-existing`.
+CMS needs `themeItems.image` + `themeItems.images` (QLU News Issues schema). Merges with existing gallery unless `--replace-existing`.
 
 ### Export section → static GitHub Pages (`docs/`)
 
