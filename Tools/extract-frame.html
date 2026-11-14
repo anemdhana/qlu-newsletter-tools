@@ -11,12 +11,13 @@
   <p class="crumb"><a href="./index.html">← Tools</a></p>
   <p class="brand">Quantum Life University</p>
   <h1>Extract frame</h1>
-  <p class="sub">Save a still from a YouTube video — at a time you choose, or the best smiling portrait.</p>
+  <p class="sub">Save a still from a YouTube video — at a time you choose, the official HQ thumbnail, or the best smiling portrait.</p>
 
   <div class="panel">
     <label for="mode">Mode</label>
     <select id="mode">
       <option value="time" selected>At a chosen time</option>
+      <option value="thumbnail">Official thumbnail (HQ)</option>
       <option value="portrait">Best portrait / smile</option>
     </select>
 
@@ -25,9 +26,9 @@
       <input id="video" type="text" placeholder="e.g. dQw4w9WgXcQ or https://youtu.be/…" autocomplete="off">
     </div>
 
-    <div id="portrait-extra" class="field" style="display:none; margin-top:0.55rem">
+    <div id="playlist-row" class="field" style="display:none; margin-top:0.55rem">
       <label for="playlist">Playlist ID or link (optional)</label>
-      <input id="playlist" type="text" placeholder="e.g. PLxxxx or playlist URL… → zip of best frames" autocomplete="off">
+      <input id="playlist" type="text" placeholder="e.g. PLxxxx or playlist URL… → zip" autocomplete="off">
     </div>
 
     <div id="time-row" class="grid" style="gap:0.55rem; margin-top:0.55rem">
@@ -42,6 +43,10 @@
           <option value="png">High detail (PNG)</option>
         </select>
       </div>
+    </div>
+
+    <div id="thumb-hint" class="field" style="display:none; margin-top:0.55rem">
+      <p class="hint">Downloads YouTube’s original poster (<code>maxresdefault</code> when available). Named like frames: <code>{title}[{videoId}]_thumb.jpg</code></p>
     </div>
 
     <div id="portrait-opts" class="grid" style="gap:0.55rem; margin-top:0.55rem; display:none">
@@ -85,7 +90,8 @@
   const go = document.getElementById("go");
   const modeEl = document.getElementById("mode");
   const timeRow = document.getElementById("time-row");
-  const portraitExtra = document.getElementById("portrait-extra");
+  const playlistRow = document.getElementById("playlist-row");
+  const thumbHint = document.getElementById("thumb-hint");
   const portraitOpts = document.getElementById("portrait-opts");
 
   function setStatus(msg, kind) {
@@ -94,11 +100,16 @@
   }
 
   function syncMode() {
-    const portrait = modeEl.value === "portrait";
-    timeRow.style.display = portrait ? "none" : "grid";
-    portraitExtra.style.display = portrait ? "block" : "none";
+    const mode = modeEl.value;
+    const portrait = mode === "portrait";
+    const thumb = mode === "thumbnail";
+    timeRow.style.display = mode === "time" ? "grid" : "none";
+    playlistRow.style.display = portrait || thumb ? "block" : "none";
+    thumbHint.style.display = thumb ? "block" : "none";
     portraitOpts.style.display = portrait ? "grid" : "none";
-    go.textContent = portrait ? "Pick best frames" : "Save frame";
+    if (thumb) go.textContent = "Save thumbnail";
+    else if (portrait) go.textContent = "Pick best frames";
+    else go.textContent = "Save frame";
   }
 
   modeEl.addEventListener("change", syncMode);
@@ -143,6 +154,25 @@
     appendDownload(data);
   }
 
+  async function runThumbnail() {
+    const video = document.getElementById("video").value.trim();
+    const playlist = document.getElementById("playlist").value.trim();
+    if (!video && !playlist) {
+      setStatus("Enter a video ID/link or playlist ID/link.", "err");
+      return;
+    }
+    setStatus(playlist ? "Downloading playlist thumbnails…" : "Downloading HQ thumbnail…");
+    preview.style.display = "none";
+    const res = await fetch("/api/extract-thumbnail", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ video, playlist }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || "Failed");
+    appendDownload(data);
+  }
+
   async function runPortrait() {
     const video = document.getElementById("video").value.trim();
     const playlist = document.getElementById("playlist").value.trim();
@@ -174,6 +204,7 @@
     go.disabled = true;
     try {
       if (modeEl.value === "portrait") await runPortrait();
+      else if (modeEl.value === "thumbnail") await runThumbnail();
       else await runTime();
     } catch (e) {
       setStatus(e.message || String(e), "err");

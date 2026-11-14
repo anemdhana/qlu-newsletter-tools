@@ -6,7 +6,8 @@ Local Tools server — serves Tools/*.html and runs Python caption/frame/whisper
   start.cmd
 
 UI: http://127.0.0.1:8765/Tools/
-API: POST /api/captions , POST /api/extract-frame , POST /api/pick-portrait , POST /api/whisper
+API: POST /api/captions , POST /api/extract-frame , POST /api/extract-thumbnail ,
+     POST /api/pick-portrait , POST /api/whisper
 """
 
 from __future__ import annotations
@@ -214,6 +215,74 @@ def run_extract_frame(payload: dict) -> dict:
     "filename": filename,
     "title": title,
     "message": f"Frame saved: {filename}",
+  }
+
+
+def run_extract_thumbnail(payload: dict) -> dict:
+  from extract_youtube_frame import extract_youtube_id, fetch_video_title
+  from extract_youtube_thumbnail import (
+    extract_playlist_thumbnails,
+    extract_thumbnail,
+    safe_thumb_filename,
+  )
+
+  playlist = (payload.get("playlist") or "").strip()
+  video = (payload.get("video") or "").strip()
+  try:
+    max_videos = max(1, min(200, int(payload.get("maxVideos") or 80)))
+  except (TypeError, ValueError) as e:
+    raise ValueError("maxVideos must be an integer.") from e
+
+  OUT.mkdir(parents=True, exist_ok=True)
+  thumb_dir = OUT / "thumbnails"
+  thumb_dir.mkdir(parents=True, exist_ok=True)
+
+  try:
+    if playlist:
+      result = extract_playlist_thumbnails(
+        playlist,
+        thumb_dir,
+        max_videos=max_videos,
+      )
+      zip_path = Path(result["zip"])
+      dest = OUT / zip_path.name
+      if zip_path.resolve() != dest.resolve():
+        dest.write_bytes(zip_path.read_bytes())
+      return {
+        "ok": True,
+        "kind": "playlist",
+        "downloadUrl": f"/download/{urllib.parse.quote(dest.name)}",
+        "filename": dest.name,
+        "playlistId": result.get("playlistId"),
+        "frameCount": len(result.get("files") or []),
+        "message": (
+          f"Thumbnail zip ready: {dest.name} "
+          f"({len(result.get('files') or [])} images"
+          f"{', ' + str(len(result['failures'])) + ' failed' if result.get('failures') else ''})"
+        ),
+      }
+
+    if not video:
+      raise ValueError("Provide video or playlist.")
+
+    vid = extract_youtube_id(video)
+    if not vid:
+      raise ValueError("Enter a YouTube video ID or URL.")
+    title = fetch_video_title(vid)
+    filename = safe_thumb_filename(vid, title)
+    dest = OUT / filename
+    extract_thumbnail(video, dest)
+  except SystemExit as e:
+    raise ValueError(str(e) if e.args else "Thumbnail download failed.") from e
+
+  return {
+    "ok": True,
+    "kind": "video",
+    "downloadUrl": f"/download/{urllib.parse.quote(filename)}",
+    "previewUrl": f"/download/{urllib.parse.quote(filename)}",
+    "filename": filename,
+    "title": title,
+    "message": f"Thumbnail saved: {filename}",
   }
 
 
@@ -585,6 +654,10 @@ class Handler(BaseHTTPRequestHandler):
         return
       if path == "/api/extract-frame":
         result = run_extract_frame(payload)
+        self._send_json(200, result)
+        return
+      if path == "/api/extract-thumbnail":
+        result = run_extract_thumbnail(payload)
         self._send_json(200, result)
         return
       if path == "/api/pick-portrait":

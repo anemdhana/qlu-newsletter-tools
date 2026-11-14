@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Install Git (if needed), clone/pull the latest quantum-life-university-news
-into the user's GitHub folder, then start Astro via dev-web.cmd (no CMS).
+Install Git + Node.js (if needed), clone/pull the latest
+quantum-life-university-news into the user's GitHub folder, then start
+dev-web.cmd (CMS API + Astro; admin UI is not opened).
 
 Typical paths:
   Windows:  %USERPROFILE%\\GitHub\\quantum-life-university-news
@@ -199,6 +200,130 @@ def ensure_git() -> str:
   return found
 
 
+# —— node / npm install ——
+
+def _prepend_path(*dirs: Path) -> None:
+  for d in dirs:
+    if d.is_dir():
+      os.environ["PATH"] = str(d) + os.pathsep + os.environ.get("PATH", "")
+
+
+def refresh_node_path() -> None:
+  """Pick up common Node install dirs after winget/choco/brew."""
+  if sys.platform == "win32":
+    pf = Path(os.environ.get("ProgramFiles", r"C:\Program Files"))
+    _prepend_path(
+      pf / "nodejs",
+      Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "nodejs",
+      Path(os.environ.get("LocalAppData", "")) / "Programs" / "node",
+    )
+  else:
+    _prepend_path(
+      Path("/usr/local/bin"),
+      Path.home() / ".nvm" / "current" / "bin",
+      Path("/opt/homebrew/bin"),
+    )
+
+
+def node_exe() -> str | None:
+  return shutil.which("node")
+
+
+def npm_exe() -> str | None:
+  return shutil.which("npm")
+
+
+def install_node_windows() -> None:
+  winget = shutil.which("winget")
+  if winget:
+    print("  Trying winget install OpenJS.NodeJS.LTS …")
+    run(
+      [
+        winget,
+        "install",
+        "--id",
+        "OpenJS.NodeJS.LTS",
+        "-e",
+        "--source",
+        "winget",
+        "--accept-package-agreements",
+        "--accept-source-agreements",
+      ],
+      check=False,
+    )
+    refresh_node_path()
+    return
+
+  choco = shutil.which("choco")
+  if choco:
+    print("  Trying chocolatey install nodejs-lts …")
+    run([choco, "install", "nodejs-lts", "-y"], check=False)
+    refresh_node_path()
+    return
+
+  raise RuntimeError(
+    "Node.js is not installed and neither winget nor chocolatey was found.\n"
+    "  Install Node LTS from https://nodejs.org/ then re-run this script."
+  )
+
+
+def install_node_unix() -> None:
+  if shutil.which("brew"):
+    print("  Trying brew install node …")
+    run(["brew", "install", "node"], check=False)
+    refresh_node_path()
+    return
+  if shutil.which("apt-get"):
+    print("  Trying apt-get install nodejs npm …")
+    run(["sudo", "apt-get", "update", "-y"], check=False)
+    run(["sudo", "apt-get", "install", "-y", "nodejs", "npm"], check=False)
+    refresh_node_path()
+    return
+  if shutil.which("dnf"):
+    print("  Trying dnf install nodejs npm …")
+    run(["sudo", "dnf", "install", "-y", "nodejs", "npm"], check=False)
+    refresh_node_path()
+    return
+  raise RuntimeError(
+    "Node.js is not installed. Install it with your package manager, then re-run.\n"
+    "  e.g. brew install node   or   sudo apt install nodejs npm"
+  )
+
+
+def ensure_nodejs() -> str:
+  found = node_exe()
+  if found:
+    ver = run([found, "--version"], capture=True, check=False)
+    npm = npm_exe() or "npm (missing)"
+    ok(f"Node ready — {(ver.stdout or found).strip()}  ·  npm: {npm}")
+    if not npm_exe():
+      raise RuntimeError(
+        "node is on PATH but npm is missing. Reinstall Node.js LTS from https://nodejs.org/"
+      )
+    return found
+
+  warn("Node.js not found on PATH — installing LTS…")
+  if sys.platform == "win32":
+    install_node_windows()
+  else:
+    install_node_unix()
+
+  refresh_node_path()
+  found = node_exe()
+  if not found:
+    raise RuntimeError(
+      "Node.js was installed but is still not on PATH.\n"
+      "  Close this terminal, open a new one, and run the script again."
+    )
+  ver = run([found, "--version"], capture=True, check=False)
+  ok(f"Node installed — {(ver.stdout or found).strip()}")
+  if not npm_exe():
+    raise RuntimeError(
+      "Node installed but npm is still missing. Open a new terminal and re-run."
+    )
+  return found
+
+
 # —— clone / pull ——
 
 def default_github_root() -> Path:
@@ -301,40 +426,47 @@ def show_log(git: str, dest: Path, count: int) -> None:
 
 
 def launch_dev_web(dest: Path) -> None:
-  """Open Astro-only launcher (dev-web.cmd). Does not start CMS/admin."""
+  """Open CMS API + Astro via dev-web.cmd (does not open /admin in the browser)."""
   cmd_path = dest / DEV_WEB_CMD
   if not cmd_path.is_file():
     warn(f"{DEV_WEB_CMD} not found in {dest} — skip launch")
-    print("  Start manually:  .\\dev-web.cmd   or   npm run dev:web")
+    print("  Start manually:  .\\dev-web.cmd")
     return
 
   if sys.platform == "win32":
     # New console window; this script can exit
     subprocess.Popen(
-      ["cmd.exe", "/c", "start", "QLU News (Astro)", str(cmd_path)],
+      ["cmd.exe", "/c", "start", "QLU News (CMS+Astro)", str(cmd_path)],
       cwd=str(dest),
       close_fds=True,
     )
     ok(f"Started {DEV_WEB_CMD} in a new window")
-    print(paint("  Site  ", C.DIM) + "http://localhost:4321")
-    print(paint("  Note  ", C.DIM) + "CMS must already be running (PUBLIC_PAYLOAD_URL)")
+    print(paint("  CMS API  ", C.DIM) + "http://localhost:3000  (no admin UI)")
+    print(paint("  Site     ", C.DIM) + "http://localhost:4321")
     return
 
-  # macOS / Linux: no .cmd — run Astro directly
-  warn(f"{DEV_WEB_CMD} is Windows-only — starting npm run dev:web …")
+  # macOS / Linux: no .cmd — start CMS + Astro in background
+  warn(f"{DEV_WEB_CMD} is Windows-only — starting npm run dev:cms + dev:web …")
+  subprocess.Popen(
+    ["npm", "run", "dev:cms"],
+    cwd=str(dest),
+    start_new_session=True,
+  )
   subprocess.Popen(
     ["npm", "run", "dev:web"],
     cwd=str(dest),
     start_new_session=True,
   )
-  ok("Started npm run dev:web in the background")
-  print(paint("  Site  ", C.DIM) + "http://localhost:4321")
+  ok("Started CMS API + Astro in the background")
+  print(paint("  CMS API  ", C.DIM) + "http://localhost:3000  (no admin UI opened)")
+  print(paint("  Site     ", C.DIM) + "http://localhost:4321")
 
 
 def main(argv: list[str] | None = None) -> int:
   parser = argparse.ArgumentParser(
     description=(
-      f"Install Git if needed, pull latest {REPO_NAME}, then start Astro (dev-web.cmd)."
+      f"Install Git + Node.js if needed, pull latest {REPO_NAME}, "
+      "then start CMS API + Astro via dev-web.cmd (admin UI not opened)."
     ),
   )
   parser.add_argument(
@@ -361,25 +493,28 @@ def main(argv: list[str] | None = None) -> int:
   )
   args = parser.parse_args(argv)
 
-  banner("QLU News — update + Astro")
+  banner("QLU News — update + CMS API + Astro")
   print(paint(f"  Target repo  ", C.DIM) + REPO_NAME)
   root = (args.dir or default_github_root()).expanduser().resolve()
   dest = root / REPO_NAME
   print(paint(f"  GitHub folder ", C.DIM) + str(root))
 
-  total = 3 if args.no_start else 4
+  total = 4 if args.no_start else 5
   try:
     step(1, total, "Ensure Git is installed")
     git = ensure_git()
 
-    step(2, total, "Clone or pull latest news repository")
+    step(2, total, "Ensure Node.js (npm) is installed")
+    ensure_nodejs()
+
+    step(3, total, "Clone or pull latest news repository")
     ensure_repo(git, dest, prefer_ssh=bool(args.ssh))
 
-    step(3, total, "Show recent history")
+    step(4, total, "Show recent history")
     show_log(git, dest, max(1, args.log))
 
     if not args.no_start:
-      step(4, total, f"Start Astro ({DEV_WEB_CMD})")
+      step(5, total, f"Start CMS API + Astro ({DEV_WEB_CMD})")
       launch_dev_web(dest)
 
     print(paint("Done.", C.BOLD, C.GREEN))

@@ -79,6 +79,13 @@ UI: **Tools → Voice type → Whisper** — record with the mic or upload audio
 
 Needs **yt-dlp** + **ffmpeg**. After `pip install -r requirements.txt`, ffmpeg comes from **imageio-ffmpeg** (no separate install). Falls back to system `ffmpeg` / `FFMPEG_PATH` when present.
 
+**Official HQ thumbnail** (Tools → Extract frame → *Official thumbnail*): downloads YouTube’s max-res poster for a video or playlist. Names match frames: `{title}[{videoId}]_thumb.jpg`.
+
+```powershell
+python scripts/extract_youtube_thumbnail.py VIDEO_ID
+python scripts/extract_youtube_thumbnail.py --playlist PLxxxx -o out\thumbnails
+```
+
 ```powershell
 python scripts/extract_youtube_frame.py VIDEO_ID --time 00:01:30
 python scripts/extract_youtube_frame.py "https://youtu.be/VIDEO_ID" -t 90 -o out\frame.jpg
@@ -98,9 +105,9 @@ python scripts/pull_latest_tools.py
 python pull_latest_tools.py --dir "$env:USERPROFILE\GitHub"
 ```
 
-### Install Git + pull latest news + start Astro
+### Install Git + Node + pull latest news + start site
 
-Same helper for [`quantum-life-university-news`](https://github.com/anemdhana/quantum-life-university-news): clone/pull into `%USERPROFILE%\GitHub\quantum-life-university-news`, then launches **`dev-web.cmd`** (Astro only — CMS must already be running).
+Same helper for [`quantum-life-university-news`](https://github.com/anemdhana/quantum-life-university-news): installs **Git** and **Node.js LTS** if missing, clone/pull into `%USERPROFILE%\GitHub\quantum-life-university-news`, then launches **`dev-web.cmd`** (CMS API + Astro; admin UI is not opened).
 
 ```powershell
 python scripts/pull_latest_news.py
@@ -122,6 +129,43 @@ python scripts/pick_best_portrait_frame.py --playlist PLxxxx -o out\portraits --
 ```
 
 Defaults: **start `00:45:00`**, **end `01:15:00`**, **sample every 1 minute** (short videos clamp the window). Writes JPGs under `out/portrait-picks` (playlist → `{playlistId}-portrait-picks.zip`). First run may `pip install opencv-python-headless`.
+
+### Import daywise JSON → Themes (EN/TE)
+
+Writes day-592-shaped JSON back onto a Themes row as Markdown (`###` sections + Speaker/Topic/Video meta), matching the Telugu lecture look.
+
+```powershell
+python scripts/import_theme_day_json.py --json "out\theme-day-json\…\day-07-en.json" --month 2026-11 --heading-needle "గణేశ"
+python scripts/import_theme_day_json.py --folder "out\theme-day-json\…\ganesha" --lang en --heading-needle "గణేశ"
+```
+
+### Export Themes → daywise JSON
+
+Downloads Issue → Themes → each class as day-592-shaped JSON (`dayNumber`, `title`, `language`, `sections[]`). Body keeps original Markdown (`**bold**`, links, lists, symbols). Writes under a series folder named from the Themes heading (e.g. Ganesha), then `{theme-title}-day-{N}-te.json`.
+
+```powershell
+python scripts/export_theme_day_json.py --month 2026-11
+python scripts/export_theme_day_json.py --month 2026-11 -o out\theme-day-json --lang te
+python scripts/export_theme_day_json.py --month 2026-11 --heading-needle "గణేశ" --dry-run
+```
+
+### Import Jnanodayam reading (day JSON + cover)
+
+Same idea as Devi Navaratri seed: daywise JSON → `jnanodayam-readings` (sections become `h2`/`p` HTML), optional thumbnail as cover. Upserts by **series + day**. Default series: `daily` — shows under **Highlight classes** on `/jnanodayam/` (open straight to the reading).
+
+```powershell
+python scripts/import_jnanodayam_reading.py --dry-run ^
+  --json "C:\Users\dhana\Downloads\day-592-te.json" ^
+  --cover "C:\Users\dhana\Downloads\…Day-592[ir4blTXdoDE]_thumb.jpg" ^
+  --title-en "Patriji Birthday Special"
+
+python scripts/import_jnanodayam_reading.py ^
+  --json "C:\Users\dhana\Downloads\day-592-te.json" ^
+  --cover "C:\Users\dhana\Downloads\…Day-592[ir4blTXdoDE]_thumb.jpg" ^
+  --title-en "Patriji Birthday Special · Atma Drishti & Guru Sangatyam"
+```
+
+Optional EN JSON: `--json-en day-592-en.json`. Folder mode: `--folder out\day-592` (picks `day-*-te.json`, optional `-en.json`, `*_thumb.*`). CMS must be on `http://localhost:3000`.
 
 ### Import theme Read More → Payload CMS
 
