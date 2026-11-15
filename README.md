@@ -220,17 +220,19 @@ python scripts/export_section_pages.py --month 2026-11 --section all
 
 Section keys: `themes`, `highlight-classes`, `experiences`, `visits`, `vanya`, `campus`, `upcoming`, or **`all`**.
 
-### Snapshot Astro Print (exact look)
+### Snapshot Astro News (exact look, GitHub Pages)
 
-Copies the live Print view HTML, `qlu.css`, logos/media images, and story pages into `docs/` (same look as `http://localhost:4321/issues/{month}/te/?view=print`).
+Copies the live **News** reader HTML, `qlu.css`, logos/media images, drawer JS, and story pages into `docs/` (same look as `http://localhost:4321/issues/{month}/te/`).
 
 ```powershell
 # Astro (4321) + CMS (3000) must be running
-python scripts/export_print_snapshot.py --month 2026-11
-python scripts/export_print_snapshot.py --month 2026-11 --lang te
+python scripts/export_news_snapshot.py --month 2026-11
+python scripts/export_news_snapshot.py --month 2026-11 --lang te
 ```
 
 Open `docs/issues/2026-11/te/index.html`. Enable **GitHub Pages**: Settings → Pages → Deploy from branch → `master` (or `main`) → folder **`/docs`**.
+
+Print view (optional): `python scripts/export_print_snapshot.py --month 2026-11`.
 
 ## Layout
 
@@ -248,6 +250,7 @@ qlu-newsletter-tools/
     import_theme_images.py
     import_theme_images_gdrive.py
     export_section_pages.py
+    export_news_snapshot.py
     export_print_snapshot.py
   out/
 ```

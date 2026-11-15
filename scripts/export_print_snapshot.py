@@ -280,7 +280,254 @@ def write_client_js(assets: Path) -> None:
 """,
     encoding="utf-8",
   )
-  print("  wrote card-masonry.js + birthday-splash.js")
+
+  newsview = assets / "newsview.js"
+  newsview.write_text(
+    r"""/* News river: section chrome + story drawer — static export */
+(function () {
+  function cssEscape(id) {
+    if (window.CSS && CSS.escape) return CSS.escape(id);
+    return String(id).replace(/([^a-zA-Z0-9_-])/g, "\\$1");
+  }
+  function chapterIdForEl(el) {
+    var section = el && el.closest ? el.closest("[data-news-section]") : null;
+    return (section && section.id) || null;
+  }
+  function storyParamFromUrl() {
+    try {
+      var raw = (new URLSearchParams(window.location.search).get("story") || "").trim();
+      return raw || null;
+    } catch (e) {
+      return null;
+    }
+  }
+  function urlWithStory(storyId) {
+    var url = new URL(window.location.href);
+    if (storyId) url.searchParams.set("story", storyId);
+    else url.searchParams.delete("story");
+    return url.pathname + url.search + url.hash;
+  }
+  function initNewsView(root) {
+    var scroller = root.querySelector(".nr__scroll");
+    var selects = Array.prototype.slice.call(root.querySelectorAll("[data-news-section-select]"));
+    var progress = root.querySelector("[data-news-progress]");
+    var heading = root.querySelector("[data-news-heading]");
+    var drawer = root.querySelector("[data-story-drawer]");
+    var drawerMount = root.querySelector("[data-story-drawer-mount]");
+    var drawerHeading = root.querySelector("#nr-drawer-heading");
+    if (drawerHeading && !drawerHeading.getAttribute("data-default")) {
+      drawerHeading.setAttribute("data-default", drawerHeading.textContent || "");
+    }
+    var sectionEls = Array.prototype.slice.call(root.querySelectorAll("[data-news-section]"));
+    var uniqueSections = sectionEls
+      .filter(function (el) { return el.id; })
+      .map(function (el) {
+        return {
+          id: el.id,
+          el: el,
+          label: el.getAttribute("data-news-label") || (el.querySelector("h2") && el.querySelector("h2").textContent) || el.id,
+        };
+      });
+    var drawerOpenId = null;
+    var lastFocus = null;
+    var skipPush = false;
+    var suppressObserverUntil = 0;
+
+    function setActive(id) {
+      var match = null;
+      for (var i = 0; i < uniqueSections.length; i++) {
+        if (uniqueSections[i].id === id) { match = uniqueSections[i]; break; }
+      }
+      if (!match) return;
+      selects.forEach(function (sel) {
+        if (sel.value !== id) sel.value = id;
+      });
+      if (heading) heading.textContent = match.label;
+    }
+
+    function scrollToId(id) {
+      var target = root.querySelector("#" + cssEscape(id));
+      if (!target || !scroller) return;
+      scroller.scrollTo({ top: Math.max(0, target.offsetTop - 8), behavior: "smooth" });
+      history.replaceState(null, "", "#" + id);
+      setActive(id);
+    }
+
+    function closeDrawer(opts) {
+      opts = opts || {};
+      if (!drawer || !drawerMount) return;
+      var wasOpen = drawer.classList.contains("is-open");
+      drawer.classList.remove("is-open");
+      drawer.setAttribute("aria-hidden", "true");
+      root.classList.remove("nr--drawer-open");
+      while (drawerMount.firstChild) drawerMount.removeChild(drawerMount.firstChild);
+      drawerOpenId = null;
+      if (wasOpen && opts.history !== false && !skipPush) {
+        history.pushState({ storyDrawer: null }, "", urlWithStory(null));
+      }
+      skipPush = false;
+      if (lastFocus && lastFocus.focus) {
+        try { lastFocus.focus({ preventScroll: true }); } catch (e) { lastFocus.focus(); }
+      }
+      lastFocus = null;
+    }
+
+    function openDrawer(storyId, opts) {
+      opts = opts || {};
+      if (!drawer || !drawerMount) return;
+      var source = root.querySelector('[data-story-source="' + String(storyId).replace(/"/g, "") + '"]');
+      if (!source) return;
+      var titleEl = source.querySelector(".story-reader__title");
+      if (drawerHeading) {
+        drawerHeading.textContent =
+          (titleEl && titleEl.textContent && titleEl.textContent.trim()) ||
+          drawerHeading.getAttribute("data-default") ||
+          "";
+      }
+      while (drawerMount.firstChild) drawerMount.removeChild(drawerMount.firstChild);
+      var first = source.firstElementChild;
+      if (first) drawerMount.appendChild(first.cloneNode(true));
+      lastFocus = opts.focus || document.activeElement;
+      drawerOpenId = storyId;
+      drawer.classList.add("is-open");
+      drawer.setAttribute("aria-hidden", "false");
+      root.classList.add("nr--drawer-open");
+      var backBtn = drawer.querySelector(".nr-drawer__back");
+      requestAnimationFrame(function () {
+        if (backBtn && backBtn.focus) {
+          try { backBtn.focus({ preventScroll: true }); } catch (e) { backBtn.focus(); }
+        }
+      });
+      var card = root.querySelector("#" + cssEscape(storyId));
+      var chapterId = chapterIdForEl(card);
+      if (chapterId) setActive(chapterId);
+      if (opts.history !== false) {
+        var url = urlWithStory(storyId);
+        if (storyParamFromUrl() !== storyId) history.pushState({ storyDrawer: storyId }, "", url);
+        else history.replaceState({ storyDrawer: storyId }, "", url);
+      }
+      var scrollPane = drawer.querySelector(".nr-drawer__scroll");
+      if (scrollPane) scrollPane.scrollTop = 0;
+    }
+
+    function restoreStoryAnchor() {
+      var id = decodeURIComponent((window.location.hash || "").replace(/^#/, ""));
+      if (id.indexOf("story-") !== 0) return false;
+      var target = root.querySelector("#" + cssEscape(id));
+      if (!target || !scroller) return false;
+      var chapterId = chapterIdForEl(target);
+      var top = Math.max(0, target.offsetTop - 24);
+      if (chapterId) setActive(chapterId);
+      requestAnimationFrame(function () {
+        scroller.scrollTo({ top: top, behavior: "smooth" });
+        if (chapterId) window.setTimeout(function () { setActive(chapterId); }, 320);
+      });
+      return true;
+    }
+
+    selects.forEach(function (sel) {
+      sel.addEventListener("change", function () {
+        if (sel.value) scrollToId(sel.value);
+      });
+    });
+    Array.prototype.forEach.call(root.querySelectorAll("a.nr__begin"), function (a) {
+      a.addEventListener("click", function (e) {
+        var id = (a.getAttribute("href") || "").replace(/^#/, "");
+        if (!id) return;
+        e.preventDefault();
+        scrollToId(id);
+      });
+    });
+    root.addEventListener("click", function (e) {
+      var target = e.target;
+      if (!(target instanceof Element)) return;
+      var closeEl = target.closest("[data-story-drawer-close]");
+      if (closeEl && drawer && drawer.contains(closeEl)) {
+        e.preventDefault();
+        closeDrawer();
+        return;
+      }
+      var openLink = target.closest("a[data-story-drawer-open]");
+      if (!openLink || !root.contains(openLink)) return;
+      if (e.defaultPrevented) return;
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      var storyId = openLink.getAttribute("data-story-drawer-open");
+      if (!storyId) return;
+      e.preventDefault();
+      openDrawer(storyId, { focus: openLink });
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape") return;
+      if (!drawer || !drawer.classList.contains("is-open")) return;
+      e.preventDefault();
+      closeDrawer();
+    });
+    window.addEventListener("popstate", function () {
+      var id = storyParamFromUrl();
+      skipPush = true;
+      if (id && root.querySelector('[data-story-source="' + String(id).replace(/"/g, "") + '"]')) {
+        openDrawer(id, { history: false });
+      } else if (drawer && drawer.classList.contains("is-open")) {
+        closeDrawer({ history: false });
+      }
+      skipPush = false;
+    });
+    if (scroller && uniqueSections.length && "IntersectionObserver" in window) {
+      var visible = {};
+      var observer = new IntersectionObserver(
+        function (entries) {
+          entries.forEach(function (entry) {
+            var id = entry.target.id;
+            if (!id) return;
+            if (entry.isIntersecting) visible[id] = entry.intersectionRatio;
+            else delete visible[id];
+          });
+          if (Date.now() < suppressObserverUntil) return;
+          var bestId = uniqueSections[0].id;
+          var bestRatio = -1;
+          uniqueSections.forEach(function (s) {
+            var ratio = visible[s.id] || 0;
+            if (ratio > bestRatio) { bestRatio = ratio; bestId = s.id; }
+          });
+          if (bestRatio > 0) setActive(bestId);
+        },
+        { root: scroller, rootMargin: "-12% 0px -62% 0px", threshold: [0.05, 0.15, 0.35, 0.55] }
+      );
+      uniqueSections.forEach(function (s) { observer.observe(s.el); });
+    }
+    function onScrollProgress() {
+      if (!progress || !scroller) return;
+      var max = Math.max(1, scroller.scrollHeight - scroller.clientHeight);
+      var pct = Math.min(100, Math.max(2, (scroller.scrollTop / max) * 100));
+      progress.style.width = pct + "%";
+    }
+    if (scroller) scroller.addEventListener("scroll", onScrollProgress, { passive: true });
+    onScrollProgress();
+    var hash = decodeURIComponent((window.location.hash || "").replace(/^#/, ""));
+    var storyQ = storyParamFromUrl();
+    if (storyQ && root.querySelector('[data-story-source="' + String(storyQ).replace(/"/g, "") + '"]')) {
+      suppressObserverUntil = Date.now() + 500;
+      restoreStoryAnchor();
+      requestAnimationFrame(function () { openDrawer(storyQ, { history: false }); });
+    } else if (hash.indexOf("story-") === 0) {
+      suppressObserverUntil = Date.now() + 500;
+      if (!restoreStoryAnchor() && uniqueSections[0]) setActive(uniqueSections[0].id);
+    } else if (hash && uniqueSections.some(function (s) { return s.id === hash; })) {
+      requestAnimationFrame(function () { scrollToId(hash); });
+    } else if (uniqueSections[0]) {
+      setActive(uniqueSections[0].id);
+    }
+  }
+  function boot() {
+    Array.prototype.forEach.call(document.querySelectorAll("[data-newsview]"), initNewsView);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+})();
+""",
+    encoding="utf-8",
+  )
+  print("  wrote card-masonry.js + birthday-splash.js + newsview.js")
 
 
 class AssetStore:
@@ -415,6 +662,7 @@ def rewrite_html(
   docs_root: Path,
   month: str,
   lang: str,
+  view: str = "print",
 ) -> str:
   # Drop Vite/Astro scripts, injected qlu <style>, and existing favicon (we re-add)
   html = SCRIPT_RE.sub("", html)
@@ -440,6 +688,7 @@ def rewrite_html(
   css_href = store.local_rel("qlu.css", from_dir)
   masonry_href = store.local_rel("card-masonry.js", from_dir)
   splash_href = store.local_rel("birthday-splash.js", from_dir)
+  newsview_href = store.local_rel("newsview.js", from_dir)
   favicon = store.local_rel("favicon.svg", from_dir)
 
   head_inject = (
@@ -451,10 +700,13 @@ def rewrite_html(
   else:
     html = head_inject + html
 
-  foot_inject = (
-    f'<script src="{masonry_href}" defer></script>'
-    f'<script src="{splash_href}" defer></script>'
-  )
+  foot_parts = [
+    f'<script src="{masonry_href}" defer></script>',
+    f'<script src="{splash_href}" defer></script>',
+  ]
+  if view == "news":
+    foot_parts.append(f'<script src="{newsview_href}" defer></script>')
+  foot_inject = "".join(foot_parts)
   if re.search(r"</body>", html, re.I):
     html = re.sub(r"</body>", foot_inject + "</body>", html, count=1, flags=re.I)
   else:
@@ -465,30 +717,30 @@ def rewrite_html(
     "\\", "/"
   )
   to_catalog = os.path.relpath(docs_root / "index.html", start=from_dir).replace("\\", "/")
-  print_here = f"{to_lang}/index.html".replace("/./", "/")
-  print_other = f"{to_other}/index.html"
+  page_here = f"{to_lang}/index.html".replace("/./", "/")
+  page_other = f"{to_other}/index.html"
 
   replacements = {
-    f"/issues/{month}/te/?view=print": print_here if lang == "te" else print_other,
-    f"/issues/{month}/en/?view=print": print_here if lang == "en" else print_other,
-    f"/issues/{month}/te?view=print": print_here if lang == "te" else print_other,
-    f"/issues/{month}/en?view=print": print_here if lang == "en" else print_other,
-    f"/issues/{month}/{lang}/?view=print": print_here,
-    f"/issues/{month}/{lang}?view=print": print_here,
-    f"/issues/{month}/te/": print_here if lang == "te" else print_other,
-    f"/issues/{month}/en/": print_here if lang == "en" else print_other,
-    f"/issues/{month}/te": print_here if lang == "te" else print_other,
-    f"/issues/{month}/en": print_here if lang == "en" else print_other,
-    f"/issues/{month}/{lang}/": print_here,
-    f"/issues/{month}/{lang}": print_here,
+    f"/issues/{month}/te/?view=print": page_here if lang == "te" else page_other,
+    f"/issues/{month}/en/?view=print": page_here if lang == "en" else page_other,
+    f"/issues/{month}/te?view=print": page_here if lang == "te" else page_other,
+    f"/issues/{month}/en?view=print": page_here if lang == "en" else page_other,
+    f"/issues/{month}/{lang}/?view=print": page_here,
+    f"/issues/{month}/{lang}?view=print": page_here,
+    f"/issues/{month}/te/": page_here if lang == "te" else page_other,
+    f"/issues/{month}/en/": page_here if lang == "en" else page_other,
+    f"/issues/{month}/te": page_here if lang == "te" else page_other,
+    f"/issues/{month}/en": page_here if lang == "en" else page_other,
+    f"/issues/{month}/{lang}/": page_here,
+    f"/issues/{month}/{lang}": page_here,
     "/issues/": to_catalog,
     "/issues": to_catalog,
   }
-  for view in ("news", "flip", "print"):
+  for v in ("news", "flip", "print"):
     for L in LANGS:
-      target = print_here if L == lang else print_other
-      replacements[f"/issues/{month}/{L}/?view={view}"] = target
-      replacements[f"/issues/{month}/{L}?view={view}"] = target
+      target = page_here if L == lang else page_other
+      replacements[f"/issues/{month}/{L}/?view={v}"] = target
+      replacements[f"/issues/{month}/{L}?view={v}"] = target
 
   def story_sub(m: re.Match[str]) -> str:
     sm = STORY_PATH_RE.match(urllib.parse.urlparse(m.group("url")).path)
@@ -519,7 +771,7 @@ def rewrite_html(
     q = m.group("q")
     L = m.group("lang")
     frag = m.group("frag") or ""
-    target = print_here if L == lang else print_other
+    target = page_here if L == lang else page_other
     return f"href={q}{target}{frag}{q}"
 
   html = re.sub(
@@ -569,6 +821,7 @@ def snapshot_page(
   lang_root: Path,
   month: str,
   lang: str,
+  view: str = "print",
 ) -> str:
   url = astro.rstrip("/") + path
   print(f"Fetching {url}")
@@ -582,13 +835,17 @@ def snapshot_page(
     docs_root=docs_root,
     month=month,
     lang=lang,
+    view=view,
   )
   out_file.write_text(cleaned, encoding="utf-8")
   print(f"  wrote {out_file.as_posix()}")
   return html  # original for story discovery
 
 
-def write_catalog(docs: Path, month: str) -> None:
+def write_catalog(docs: Path, month: str, *, view: str = "print") -> None:
+  label = "News" if view == "news" else "Print"
+  body_class = "is-news" if view == "news" else "is-print"
+  main_class = "news-main" if view == "news" else "print-main"
   catalog = docs / "index.html"
   month_index = docs / "issues" / month / "index.html"
   ensure_dir(month_index.parent)
@@ -601,11 +858,11 @@ def write_catalog(docs: Path, month: str) -> None:
   <title>Issue {month}</title>
   <link rel="stylesheet" href="../../assets/qlu.css">
 </head>
-<body class="lang-en is-print">
-  <main class="qlu-main print-main" style="width:min(100% - 1.25rem,46rem);margin:0 auto;padding:1rem 0 2rem">
+<body class="lang-en {body_class}">
+  <main class="qlu-main {main_class}" style="width:min(100% - 1.25rem,46rem);margin:0 auto;padding:1rem 0 2rem">
     <p class="brand" style="color:var(--qlu-gold);font-size:.68rem;letter-spacing:.14em;text-transform:uppercase">Quantum Life University</p>
     <h1 style="color:var(--qlu-heading)">{month}</h1>
-    <p><a href="te/index.html">తెలుగు · Print</a> · <a href="en/index.html">English · Print</a></p>
+    <p><a href="te/index.html">తెలుగు · {label}</a> · <a href="en/index.html">English · {label}</a></p>
     <p><a href="../../index.html">All exports</a></p>
   </main>
 </body>
@@ -613,7 +870,6 @@ def write_catalog(docs: Path, month: str) -> None:
 """,
     encoding="utf-8",
   )
-  # Merge into simple catalog
   catalog.write_text(
     f"""<!DOCTYPE html>
 <html lang="en">
@@ -627,10 +883,10 @@ def write_catalog(docs: Path, month: str) -> None:
   <main class="qlu-main" style="width:min(100% - 1.25rem,46rem);margin:0 auto;padding:1rem 0 2rem">
     <p style="color:var(--qlu-gold);font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;font-weight:600">Quantum Life University</p>
     <h1 style="color:var(--qlu-heading)">Magazine exports</h1>
-    <p style="color:var(--qlu-muted)">Astro Print snapshots for GitHub Pages.</p>
+    <p style="color:var(--qlu-muted)">Astro {label} snapshots for GitHub Pages.</p>
     <ul>
-      <li><a href="issues/{month}/te/index.html">{month} · TE · Print</a></li>
-      <li><a href="issues/{month}/en/index.html">{month} · EN · Print</a></li>
+      <li><a href="issues/{month}/te/index.html">{month} · TE · {label}</a></li>
+      <li><a href="issues/{month}/en/index.html">{month} · EN · {label}</a></li>
       <li><a href="issues/{month}/index.html">{month} hub</a></li>
     </ul>
     <p><a href="../Tools/index.html">Newsletter Tools</a></p>
@@ -640,27 +896,24 @@ def write_catalog(docs: Path, month: str) -> None:
 """,
     encoding="utf-8",
   )
-  print(f"  wrote catalog + month hub")
+  print(f"  wrote catalog + month hub ({label})")
 
 
-def main() -> int:
-  ap = argparse.ArgumentParser(description="Snapshot Astro Print view into docs/")
-  ap.add_argument("--month", required=True, help="YYYY-MM")
-  ap.add_argument(
-    "--lang",
-    choices=(*LANGS, "all"),
-    default="all",
-    help="Language to snapshot (default all)",
-  )
-  ap.add_argument("--astro", default=DEFAULT_ASTRO, help="Astro origin (default localhost:4321)")
-  ap.add_argument("--out", default=str(REPO_ROOT / "docs"), help="docs root")
-  ap.add_argument("--skip-stories", action="store_true", help="Do not snapshot Read more pages")
-  args = ap.parse_args()
-
-  if not re.fullmatch(r"\d{4}-\d{2}", args.month):
+def run_snapshot(
+  *,
+  month: str,
+  lang: str,
+  astro: str,
+  out: str,
+  skip_stories: bool,
+  view: str,
+) -> int:
+  if not re.fullmatch(r"\d{4}-\d{2}", month):
     raise SystemExit("--month must be YYYY-MM")
+  if view not in ("news", "print"):
+    raise SystemExit("--view must be news or print")
 
-  docs = Path(args.out).resolve()
+  docs = Path(out).resolve()
   assets = docs / "assets"
   ensure_dir(assets)
   (docs / ".nojekyll").write_text("", encoding="utf-8")
@@ -668,15 +921,17 @@ def main() -> int:
   write_qlu_css(assets / "qlu.css")
   write_client_js(assets)
   for name in ("qlu-logo.png", "favicon.svg", "newton-birthday.jpg"):
-    copy_or_fetch_public(args.astro, name, assets / name)
+    copy_or_fetch_public(astro, name, assets / name)
 
-  store = AssetStore(assets, args.astro)
+  store = AssetStore(assets, astro)
   store.map["/qlu-logo.png"] = "qlu-logo.png"
   store.map["/favicon.svg"] = "favicon.svg"
   store.map["/newton-birthday.jpg"] = "newton-birthday.jpg"
   store.map["qlu.css"] = "qlu.css"
+  store.map["newsview.js"] = "newsview.js"
+  store.map["card-masonry.js"] = "card-masonry.js"
+  store.map["birthday-splash.js"] = "birthday-splash.js"
 
-  # Clear previous mistaken non-image media downloads
   media_dir = assets / "media"
   if media_dir.is_dir():
     for p in media_dir.iterdir():
@@ -685,40 +940,78 @@ def main() -> int:
       ):
         p.unlink(missing_ok=True)
 
-  langs = LANGS if args.lang == "all" else (args.lang,)
-  for lang in langs:
-    lang_root = docs / "issues" / args.month / lang
+  langs = LANGS if lang == "all" else (lang,)
+  for L in langs:
+    lang_root = docs / "issues" / month / L
     out_file = lang_root / "index.html"
-    path = f"/issues/{args.month}/{lang}/?view=print"
+    if view == "news":
+      path = f"/issues/{month}/{L}/"
+    else:
+      path = f"/issues/{month}/{L}/?view=print"
     original = snapshot_page(
-      astro=args.astro,
+      astro=astro,
       path=path,
       out_file=out_file,
       store=store,
       docs_root=docs,
       lang_root=lang_root,
-      month=args.month,
-      lang=lang,
+      month=month,
+      lang=L,
+      view=view,
     )
-    if args.skip_stories:
+    if skip_stories:
       continue
-    for section, item, story_path in extract_story_paths(original, args.month, lang):
+    for section, item, story_path in extract_story_paths(original, month, L):
       story_out = lang_root / "story" / section / item / "index.html"
-      story_url_path = f"{story_path.rstrip('/')}/?from=print"
+      from_view = "news" if view == "news" else "print"
+      story_url_path = f"{story_path.rstrip('/')}/?from={from_view}"
       snapshot_page(
-        astro=args.astro,
+        astro=astro,
         path=story_url_path,
         out_file=story_out,
         store=store,
         docs_root=docs,
         lang_root=lang_root,
-        month=args.month,
-        lang=lang,
+        month=month,
+        lang=L,
+        view=view,
       )
 
-  write_catalog(docs, args.month)
-  print(f"Done. Open {docs / 'issues' / args.month / 'te' / 'index.html'}")
+  write_catalog(docs, month, view=view)
+  print(f"Done. Open {docs / 'issues' / month / 'te' / 'index.html'}")
   return 0
+
+
+def main(argv: list[str] | None = None, *, default_view: str = "print") -> int:
+  ap = argparse.ArgumentParser(
+    description=f"Snapshot Astro {default_view.title()} view into docs/ for GitHub Pages",
+  )
+  ap.add_argument("--month", required=True, help="YYYY-MM")
+  ap.add_argument(
+    "--lang",
+    choices=(*LANGS, "all"),
+    default="all",
+    help="Language to snapshot (default all)",
+  )
+  ap.add_argument(
+    "--view",
+    choices=("news", "print"),
+    default=default_view,
+    help=f"Astro view to snapshot (default {default_view})",
+  )
+  ap.add_argument("--astro", default=DEFAULT_ASTRO, help="Astro origin (default localhost:4321)")
+  ap.add_argument("--out", default=str(REPO_ROOT / "docs"), help="docs root")
+  ap.add_argument("--skip-stories", action="store_true", help="Do not snapshot Read more pages")
+  args = ap.parse_args(argv)
+
+  return run_snapshot(
+    month=args.month,
+    lang=args.lang,
+    astro=args.astro,
+    out=args.out,
+    skip_stories=args.skip_stories,
+    view=args.view,
+  )
 
 
 if __name__ == "__main__":
