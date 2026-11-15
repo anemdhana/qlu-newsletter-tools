@@ -77,13 +77,25 @@ def main() -> None:
   args = ap.parse_args()
 
   folder = Path(args.folder)
-  te_blurb_path = folder / "devi-navaratri-10-days-te-blurb.json"
-  en_blurb_path = folder / "devi-navaratri-10-days-en-blurb.json"
-  if not te_blurb_path.is_file() and not en_blurb_path.is_file():
+
+  def prefer_blurb(lang: str) -> Path | None:
+    v4 = folder / f"devi-navaratri-10-days-{lang}-blurb-v4.json"
+    v1 = folder / f"devi-navaratri-10-days-{lang}-blurb.json"
+    if v4.is_file():
+      return v4
+    if v1.is_file():
+      return v1
+    return None
+
+  te_blurb_path = prefer_blurb("te")
+  en_blurb_path = prefer_blurb("en")
+  if not te_blurb_path and not en_blurb_path:
     raise SystemExit(f"Missing blurb JSON in {folder}")
 
-  te_blurb = load_json(te_blurb_path) if te_blurb_path.is_file() else None
-  en_blurb = load_json(en_blurb_path) if en_blurb_path.is_file() else None
+  te_blurb = load_json(te_blurb_path) if te_blurb_path else None
+  en_blurb = load_json(en_blurb_path) if en_blurb_path else None
+  print(f"blurb TE: {te_blurb_path.name if te_blurb_path else '-'}")
+  print(f"blurb EN: {en_blurb_path.name if en_blurb_path else '-'}")
   title_te = str((te_blurb or {}).get("title") or "").strip()
   title_en = str((en_blurb or {}).get("title") or "").strip()
   insight_te = insight_from_blurb(te_blurb)

@@ -139,6 +139,33 @@ python scripts/import_featured_classes.py --folder "C:\Users\dhana\Downloads\dri
 python scripts/import_featured_classes.py --folder "…" --month 2026-11 --dry-run
 ```
 
+### Collapse Devi Themes → one series card
+
+Replaces the 10 Devi Navaratri theme rows with **one** card: v4 blurb as the summary, `daySummaries` as Read more (each day + source YouTube), thumbnail shared with Featured Classes. Also syncs the Featured Classes Devi insight to the same v4 text.
+
+```powershell
+python scripts/import_devi_theme_series.py --month 2026-11 --dry-run
+python scripts/import_devi_theme_series.py --folder "C:\Users\dhana\Downloads\drive-download-20261115T052214Z-1-001" --month 2026-11
+```
+
+### Collapse Speak Peace Themes → one series card
+
+Same pattern for Speak Peace (9 days): blurb JSON + cover PNG → one Themes card; `daySummaries` + source videos in Read more.
+
+```powershell
+python scripts/import_speak_peace_theme_series.py --month 2026-11 --dry-run
+python scripts/import_speak_peace_theme_series.py --folder "C:\Users\dhana\Downloads\drive-download-20261115T052214Z-1-001" --month 2026-11
+```
+
+### Collapse Ganesha Themes → one series card
+
+Same pattern for Ganesha (10 days, 529–538): blurb JSON + cover PNG → one Themes card.
+
+```powershell
+python scripts/import_ganesha_theme_series.py --month 2026-11 --dry-run
+python scripts/import_ganesha_theme_series.py --folder "C:\Users\dhana\Downloads\drive-download-20261115T052214Z-1-001" --month 2026-11
+```
+
 ### Import daywise JSON → Themes (EN/TE)
 
 Writes day-592-shaped JSON back onto a Themes row as Markdown (`###` sections + Speaker/Topic/Video meta), matching the Telugu lecture look.
