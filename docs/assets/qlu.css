@@ -1790,12 +1790,14 @@ body.lang-te .nr-prose {
   margin-top: 1.4rem;
 }
 
-/* Featured Classes: less gap after the section rule before cards */
-.nr-chapter:has(.nr-chapter__items--classes) .nr-chapter__content {
+/* Featured Classes / Themes: less gap after the section rule before cards */
+.nr-chapter:has(.nr-chapter__items--classes) .nr-chapter__content,
+.nr-chapter:has(.nr-chapter__items--themes) .nr-chapter__content {
   padding-top: 0.55rem;
 }
 
-.nr-chapter__items--classes {
+.nr-chapter__items--classes,
+.nr-chapter__items--themes {
   margin-top: 0.35rem;
 }
 
