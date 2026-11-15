@@ -130,6 +130,15 @@ python scripts/pick_best_portrait_frame.py --playlist PLxxxx -o out\portraits --
 
 Defaults: **start `00:45:00`**, **end `01:15:00`**, **sample every 1 minute** (short videos clamp the window). Writes JPGs under `out/portrait-picks` (playlist → `{playlistId}-portrait-picks.zip`). First run may `pip install opencv-python-headless`.
 
+### Import Featured Classes (+ Jnanodayam readings)
+
+Drive pack with `day-NNN-te.json` / `-en.json`, `*-blurb.json`, and `*_thumb.jpg` → upserts **Highlight classes** readings (`series=daily`) and Issue **Section 2** `classItems` (thumb, day, blurb, fullStory). Newsletter Read more keeps the existing side drawer (`storyUrl` left empty).
+
+```powershell
+python scripts/import_featured_classes.py --folder "C:\Users\dhana\Downloads\drive-download-20261115T052214Z-1-001" --month 2026-11
+python scripts/import_featured_classes.py --folder "…" --month 2026-11 --dry-run
+```
+
 ### Import daywise JSON → Themes (EN/TE)
 
 Writes day-592-shaped JSON back onto a Themes row as Markdown (`###` sections + Speaker/Topic/Video meta), matching the Telugu lecture look.
