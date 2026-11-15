@@ -5,6 +5,8 @@ venv/
 .env
 out/*
 !out/.gitkeep
+!out/theme-day-json/
+!out/theme-day-json/**/
 .yt-dlp-cache/
 .cache/
 *.zip
