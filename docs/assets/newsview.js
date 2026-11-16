@@ -23,7 +23,10 @@
     return url.pathname + url.search + url.hash;
   }
   function initNewsView(root) {
-    var scroller = root.querySelector(".nr__scroll");
+    var scroller =
+      root.querySelector("[data-news-scroll]") ||
+      root.querySelector(".nr__scroll") ||
+      root.querySelector(".nreel__scroll");
     var selects = Array.prototype.slice.call(root.querySelectorAll("[data-news-section-select]"));
     var progress = root.querySelector("[data-news-progress]");
     var heading = root.querySelector("[data-news-heading]");

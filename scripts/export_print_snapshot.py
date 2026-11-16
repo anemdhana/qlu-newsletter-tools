@@ -308,7 +308,10 @@ def write_client_js(assets: Path) -> None:
     return url.pathname + url.search + url.hash;
   }
   function initNewsView(root) {
-    var scroller = root.querySelector(".nr__scroll");
+    var scroller =
+      root.querySelector("[data-news-scroll]") ||
+      root.querySelector(".nr__scroll") ||
+      root.querySelector(".nreel__scroll");
     var selects = Array.prototype.slice.call(root.querySelectorAll("[data-news-section-select]"));
     var progress = root.querySelector("[data-news-progress]");
     var heading = root.querySelector("[data-news-heading]");
@@ -527,7 +530,134 @@ def write_client_js(assets: Path) -> None:
 """,
     encoding="utf-8",
   )
-  print("  wrote card-masonry.js + birthday-splash.js + newsview.js")
+
+  reel = assets / "newsletterReel.js"
+  reel.write_text(
+    r"""/* Newsletter reel (view=print): dots, jump, keyboard — static export */
+(function () {
+  function cssEscape(id) {
+    if (window.CSS && CSS.escape) return CSS.escape(id);
+    return String(id).replace(/([^a-zA-Z0-9_-])/g, "\\$1");
+  }
+  function initNewsletterReel(root) {
+    var scroller =
+      root.querySelector("[data-news-scroll]") ||
+      root.querySelector(".nreel__scroll");
+    if (!scroller) return;
+    var slides = Array.prototype.slice.call(root.querySelectorAll(".nreel-slide"));
+    var dots = Array.prototype.slice.call(root.querySelectorAll("[data-reel-dot]"));
+    var jumpSelect = root.querySelector("[data-reel-jump-select]");
+    var jumpChips = Array.prototype.slice.call(root.querySelectorAll("[data-reel-jump]"));
+    if (!slides.length) return;
+
+    function setActive(index) {
+      dots.forEach(function (d, i) {
+        d.classList.toggle("is-active", i === index);
+      });
+      var slide = slides[index];
+      if (!slide) return;
+      if (jumpSelect && jumpSelect.value !== slide.id) jumpSelect.value = slide.id;
+      var group = slide.getAttribute("data-reel-group") || "";
+      jumpChips.forEach(function (btn) {
+        var id = btn.getAttribute("data-reel-jump") || "";
+        var target = id ? root.querySelector("#" + cssEscape(id)) : null;
+        var g = (target && target.getAttribute("data-reel-group")) || "";
+        btn.classList.toggle("is-active", Boolean(group) && g === group);
+      });
+    }
+
+    function goTo(index) {
+      var i = Math.max(0, Math.min(slides.length - 1, index));
+      var target = slides[i];
+      if (!target) return;
+      scroller.scrollTo({ top: target.offsetTop, behavior: "smooth" });
+      setActive(i);
+    }
+
+    function goToId(id) {
+      for (var i = 0; i < slides.length; i++) {
+        if (slides[i].id === id) {
+          goTo(i);
+          return;
+        }
+      }
+    }
+
+    if ("IntersectionObserver" in window) {
+      var visible = new Map();
+      var io = new IntersectionObserver(
+        function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) visible.set(entry.target, entry.intersectionRatio);
+            else visible.delete(entry.target);
+          });
+          var best = 0;
+          var bestR = -1;
+          slides.forEach(function (el, i) {
+            var r = visible.get(el) || 0;
+            if (r > bestR) {
+              bestR = r;
+              best = i;
+            }
+          });
+          if (bestR > 0) setActive(best);
+        },
+        { root: scroller, threshold: [0.35, 0.55, 0.75] }
+      );
+      slides.forEach(function (el) { io.observe(el); });
+    }
+
+    dots.forEach(function (dot) {
+      dot.addEventListener("click", function () {
+        goTo(Number(dot.getAttribute("data-reel-dot") || "0"));
+      });
+    });
+    jumpChips.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-reel-jump");
+        if (id) goToId(id);
+      });
+    });
+    if (jumpSelect) {
+      jumpSelect.addEventListener("change", function () {
+        if (jumpSelect.value) goToId(jumpSelect.value);
+      });
+    }
+    root.addEventListener("keydown", function (e) {
+      if (
+        e.key !== "ArrowDown" &&
+        e.key !== "ArrowUp" &&
+        e.key !== "PageDown" &&
+        e.key !== "PageUp"
+      ) {
+        return;
+      }
+      var t = e.target;
+      if (t && t.closest && t.closest("input, textarea, select, [contenteditable]")) return;
+      var active = -1;
+      for (var i = 0; i < dots.length; i++) {
+        if (dots[i].classList.contains("is-active")) {
+          active = i;
+          break;
+        }
+      }
+      var cur = active >= 0 ? active : 0;
+      e.preventDefault();
+      goTo(e.key === "ArrowDown" || e.key === "PageDown" ? cur + 1 : cur - 1);
+    });
+    if (!root.hasAttribute("tabindex")) root.setAttribute("tabindex", "0");
+    setActive(0);
+  }
+  function boot() {
+    Array.prototype.forEach.call(document.querySelectorAll(".nreel"), initNewsletterReel);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+})();
+""",
+    encoding="utf-8",
+  )
+  print("  wrote card-masonry.js + birthday-splash.js + newsview.js + newsletterReel.js")
 
 
 class AssetStore:
@@ -689,6 +819,7 @@ def rewrite_html(
   masonry_href = store.local_rel("card-masonry.js", from_dir)
   splash_href = store.local_rel("birthday-splash.js", from_dir)
   newsview_href = store.local_rel("newsview.js", from_dir)
+  reel_href = store.local_rel("newsletterReel.js", from_dir)
   favicon = store.local_rel("favicon.svg", from_dir)
 
   head_inject = (
@@ -706,6 +837,10 @@ def rewrite_html(
   ]
   if view == "news":
     foot_parts.append(f'<script src="{newsview_href}" defer></script>')
+  elif view == "print":
+    # Reel needs drawer (newsview) + jump/dots (newsletterReel)
+    foot_parts.append(f'<script src="{newsview_href}" defer></script>')
+    foot_parts.append(f'<script src="{reel_href}" defer></script>')
   foot_inject = "".join(foot_parts)
   if re.search(r"</body>", html, re.I):
     html = re.sub(r"</body>", foot_inject + "</body>", html, count=1, flags=re.I)
@@ -843,9 +978,9 @@ def snapshot_page(
 
 
 def write_catalog(docs: Path, month: str, *, view: str = "print") -> None:
-  label = "News" if view == "news" else "Print"
-  body_class = "is-news" if view == "news" else "is-print"
-  main_class = "news-main" if view == "news" else "print-main"
+  label = "News" if view == "news" else "Print reel"
+  body_class = "is-news"
+  main_class = "news-main nreel-main" if view == "print" else "news-main"
   catalog = docs / "index.html"
   month_index = docs / "issues" / month / "index.html"
   ensure_dir(month_index.parent)
@@ -929,6 +1064,7 @@ def run_snapshot(
   store.map["/newton-birthday.jpg"] = "newton-birthday.jpg"
   store.map["qlu.css"] = "qlu.css"
   store.map["newsview.js"] = "newsview.js"
+  store.map["newsletterReel.js"] = "newsletterReel.js"
   store.map["card-masonry.js"] = "card-masonry.js"
   store.map["birthday-splash.js"] = "birthday-splash.js"
 

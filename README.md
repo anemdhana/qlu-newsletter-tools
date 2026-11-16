@@ -259,7 +259,7 @@ python scripts/export_news_snapshot.py --month 2026-11 --lang te
 
 Open `docs/issues/2026-11/te/index.html`. Enable **GitHub Pages**: Settings → Pages → Deploy from branch → `master` (or `main`) → folder **`/docs`**.
 
-Print view (optional): `python scripts/export_print_snapshot.py --month 2026-11`.
+Print reel (`?view=print`, optional): `python scripts/export_print_snapshot.py --month 2026-11`.
 
 ## Layout
 
