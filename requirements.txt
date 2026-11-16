@@ -33,6 +33,7 @@
 yt-dlp>=2024.8.0
 imageio-ffmpeg>=0.5.1
 gdown>=5.2.0
-opencv-python-headless>=4.8.0
+# OpenCV still lacks 3.15 wheels — portrait picker installs it on demand below 3.15
+opencv-python-headless>=4.8.0; python_version < "3.15"
 faster-whisper>=1.0.0; python_version < "3.15"
 pywhispercpp>=1.5.0; python_version >= "3.15"
