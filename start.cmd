@@ -22,10 +22,22 @@ echo.
 where python >nul 2>&1
 if errorlevel 1 (
   echo Python not found on PATH.
-  echo Install Python 3.10+ from https://www.python.org/downloads/
+  echo Install Python 3.12 or 3.13 from https://www.python.org/downloads/
   echo and check "Add python.exe to PATH", then re-open this window.
   pause
   exit /b 1
+)
+
+REM Show version; warn when Whisper is unavailable (3.15+)
+python -c "import sys; print('  Python %d.%d.%d' % sys.version_info[:3])"
+python -c "import sys; raise SystemExit(0 if sys.version_info[:2] <= (3, 14) else 1)" 2>nul
+if errorlevel 1 (
+  echo.
+  echo  WARNING: This Python is newer than 3.14.
+  echo  Install Python 3.12 or 3.13 from https://www.python.org/downloads/
+  echo  ^(check Add to PATH^), then reopen this window — Whisper needs it.
+  echo  Continuing without Whisper; captions / frames / hub still work.
+  echo.
 )
 
 echo Checking Python packages ^(yt-dlp, imageio-ffmpeg^)...
@@ -34,6 +46,9 @@ if errorlevel 1 (
   echo.
   echo pip install failed. Try manually:
   echo   python -m pip install -r requirements.txt
+  echo.
+  echo If you are on Python 3.15+, install Python 3.12 or 3.13 instead:
+  echo   https://www.python.org/downloads/
   pause
   exit /b 1
 )

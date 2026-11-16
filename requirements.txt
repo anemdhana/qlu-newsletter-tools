@@ -1,7 +1,11 @@
 # qlu-newsletter-tools — Python packages
 # --------------------------------------
+# Supported: Python 3.10–3.14 (3.12 or 3.13 recommended).
+# Python 3.15+ can run the Tools hub, but Whisper is skipped until
+# faster-whisper ships wheels for that version.
+#
 # New developer setup (Windows):
-#   1. Install Python 3.10+ from https://www.python.org/downloads/
+#   1. Install Python 3.12 or 3.13 from https://www.python.org/downloads/
 #      (check "Add python.exe to PATH")
 #   2. From this folder:
 #        python -m pip install -r requirements.txt
@@ -29,6 +33,6 @@
 yt-dlp>=2024.8.0
 imageio-ffmpeg>=0.5.1
 gdown>=5.2.0
-faster-whisper>=1.0.0
 opencv-python-headless>=4.8.0
-# OpenCV 5 dropped Haar Cascades; pick_best_portrait_frame uses YuNet ONNX (auto-downloaded).
+# Whisper / Voice type — not yet installable on Python 3.15+
+faster-whisper>=1.0.0; python_version < "3.15"
