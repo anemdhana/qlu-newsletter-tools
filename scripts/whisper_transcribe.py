@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
-Transcribe audio with faster-whisper + QLU spiritual glossary priming.
+Transcribe audio with Whisper + QLU spiritual glossary priming.
+
+Backends (auto-selected):
+  • Python < 3.15  → faster-whisper (CTranslate2)
+  • Python ≥ 3.15  → pywhispercpp (whisper.cpp) — faster-whisper deps lack 3.15 wheels
 
 CLI:
   python scripts/whisper_transcribe.py path/to/audio.webm --lang te
   python scripts/whisper_transcribe.py path/to/audio.mp3 --lang en --model small
-
-Requires: pip install faster-whisper  (and ffmpeg via imageio-ffmpeg / system)
 """
 
 from __future__ import annotations
@@ -26,6 +28,11 @@ from qlu_spiritual_glossary import build_initial_prompt
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "out"
+
+
+def whisper_backend_name() -> str:
+  """Preferred backend for this Python version."""
+  return "pywhispercpp" if sys.version_info[:2] >= (3, 15) else "faster-whisper"
 
 
 def ensure_ffmpeg_on_path() -> str | None:
@@ -123,7 +130,6 @@ def load_wav_mono_float32(path: Path) -> np.ndarray:
   if channels > 1:
     audio = audio.reshape(-1, channels).mean(axis=1)
   if rate != 16000:
-    # Should already be 16 kHz from ffmpeg; resample crudely if not.
     duration = audio.shape[0] / float(rate)
     target = max(1, int(duration * 16000))
     audio = np.interp(
@@ -145,33 +151,137 @@ def normalize_lang(lang: str) -> str:
   return code.split("-")[0] or "te"
 
 
+def _install_hint(backend: str) -> str:
+  pkg = "pywhispercpp" if backend == "pywhispercpp" else "faster-whisper"
+  return (
+    f"{pkg} is not installed. Run:\n"
+    f"  python -m pip install -r requirements.txt\n"
+    f"Then retry."
+  )
+
+
 def load_model(model_size: str = "small", device: str = "auto"):
+  backend = whisper_backend_name()
+  ensure_ffmpeg_on_path()
+
+  if backend == "pywhispercpp":
+    try:
+      from pywhispercpp.model import Model
+    except ImportError as e:
+      raise RuntimeError(_install_hint(backend)) from e
+    # Multilingual ggml models (not *.en) — Telugu/Hindi need these.
+    name = model_size if not model_size.endswith(".en") else model_size
+    return {
+      "backend": backend,
+      "model": Model(
+        name,
+        language="",  # set per-call in transcribe
+        translate=False,
+        print_progress=False,
+        print_realtime=False,
+        print_timestamps=False,
+        no_context=True,
+      ),
+      "size": model_size,
+    }
+
   try:
     from faster_whisper import WhisperModel
   except ImportError as e:
-    raise RuntimeError(
-      "faster-whisper is not installed. Run:\n"
-      "  python -m pip install faster-whisper\n"
-      "Then retry."
-    ) from e
+    raise RuntimeError(_install_hint("faster-whisper")) from e
 
-  ensure_ffmpeg_on_path()
-  # CPU int8 is the practical default on most Windows laptops.
   compute = "int8"
   dev = device
   if device == "auto":
     dev = "cpu"
-  return WhisperModel(model_size, device=dev, compute_type=compute)
+  return {
+    "backend": "faster-whisper",
+    "model": WhisperModel(model_size, device=dev, compute_type=compute),
+    "size": model_size,
+  }
 
 
-_MODEL_CACHE: dict[tuple[str, str], object] = {}
+_MODEL_CACHE: dict[tuple[str, str, str], object] = {}
 
 
 def get_cached_model(model_size: str = "small", device: str = "auto"):
-  key = (model_size, device)
+  key = (whisper_backend_name(), model_size, device)
   if key not in _MODEL_CACHE:
     _MODEL_CACHE[key] = load_model(model_size, device)
   return _MODEL_CACHE[key]
+
+
+def _transcribe_faster_whisper(
+  handle: dict,
+  audio: np.ndarray,
+  *,
+  whisper_lang: str,
+  initial: str,
+) -> tuple[list[dict], str, float]:
+  model = handle["model"]
+  segments_iter, info = model.transcribe(
+    audio,
+    language=whisper_lang,
+    task="transcribe",
+    vad_filter=False,
+    beam_size=5,
+    best_of=5,
+    patience=1.0,
+    condition_on_previous_text=False,
+    initial_prompt=initial,
+    word_timestamps=False,
+    no_speech_threshold=0.4,
+    compression_ratio_threshold=2.8,
+  )
+  segments = []
+  parts: list[str] = []
+  for seg in segments_iter:
+    text = (seg.text or "").strip()
+    if not text:
+      continue
+    segments.append(
+      {
+        "start": round(float(seg.start), 2),
+        "end": round(float(seg.end), 2),
+        "text": text,
+      }
+    )
+    parts.append(text)
+  lang = getattr(info, "language", whisper_lang) or whisper_lang
+  duration = round(float(getattr(info, "duration", 0) or 0), 2)
+  return segments, lang, duration
+
+
+def _transcribe_pywhispercpp(
+  handle: dict,
+  audio: np.ndarray,
+  *,
+  whisper_lang: str,
+  initial: str,
+) -> tuple[list[dict], str, float]:
+  model = handle["model"]
+  segs = model.transcribe(
+    audio,
+    language=whisper_lang,
+    translate=False,
+    initial_prompt=initial or None,
+    no_context=True,
+    print_progress=False,
+    print_realtime=False,
+  )
+  segments = []
+  parts: list[str] = []
+  for seg in segs:
+    text = (getattr(seg, "text", None) or "").strip()
+    if not text:
+      continue
+    # whisper.cpp timestamps are in centiseconds (10 ms units).
+    start = round(float(getattr(seg, "t0", 0) or 0) / 100.0, 2)
+    end = round(float(getattr(seg, "t1", 0) or 0) / 100.0, 2)
+    segments.append({"start": start, "end": end, "text": text})
+    parts.append(text)
+  duration = segments[-1]["end"] if segments else round(float(audio.size) / 16000.0, 2)
+  return segments, whisper_lang, duration
 
 
 def transcribe_audio(
@@ -183,7 +293,7 @@ def transcribe_audio(
   *,
   use_cache: bool = True,
 ) -> dict:
-  """Return {text, language, segments, model}."""
+  """Return {text, language, segments, model, backend}."""
   path = Path(audio_path)
   if not path.is_file():
     raise FileNotFoundError(f"Audio not found: {path}")
@@ -192,11 +302,11 @@ def transcribe_audio(
 
   whisper_lang = normalize_lang(lang)
   initial = build_initial_prompt(whisper_lang, extra_prompt)
-  model = get_cached_model(model_size, device) if use_cache else load_model(model_size, device)
+  handle = get_cached_model(model_size, device) if use_cache else load_model(model_size, device)
+  backend = handle["backend"]
 
   wav_path, tmp_dir = prepare_audio_for_whisper(path)
   try:
-    # Pass numpy audio so faster-whisper never calls PyAV (broken on many WebM/WAV paths).
     audio = load_wav_mono_float32(wav_path)
     if audio.size < 1600:  # < ~0.1s
       raise RuntimeError("Recording too short — speak for a couple of seconds, then stop.")
@@ -207,48 +317,27 @@ def transcribe_audio(
         "Raise Windows mic volume, speak closer, watch the level bar, then retry."
       )
 
-    # VAD off by default — short mic clips were often wiped as "silence".
-    segments_iter, info = model.transcribe(
-      audio,
-      language=whisper_lang,
-      task="transcribe",
-      vad_filter=False,
-      beam_size=5,
-      best_of=5,
-      patience=1.0,
-      condition_on_previous_text=False,
-      initial_prompt=initial,
-      word_timestamps=False,
-      no_speech_threshold=0.4,
-      compression_ratio_threshold=2.8,
-    )
-
-    segments = []
-    parts: list[str] = []
-    for seg in segments_iter:
-      text = (seg.text or "").strip()
-      if not text:
-        continue
-      segments.append(
-        {
-          "start": round(float(seg.start), 2),
-          "end": round(float(seg.end), 2),
-          "text": text,
-        }
+    if backend == "pywhispercpp":
+      segments, out_lang, duration = _transcribe_pywhispercpp(
+        handle, audio, whisper_lang=whisper_lang, initial=initial
       )
-      parts.append(text)
+    else:
+      segments, out_lang, duration = _transcribe_faster_whisper(
+        handle, audio, whisper_lang=whisper_lang, initial=initial
+      )
 
+    parts = [s["text"] for s in segments]
     full = "\n".join(parts).strip()
-    # Light cleanup: collapse runaway spaces, keep Telugu punctuation intact.
     full = re.sub(r"[ \t]{2,}", " ", full)
     full = re.sub(r"\n{3,}", "\n\n", full)
 
     return {
       "text": full,
-      "language": getattr(info, "language", whisper_lang) or whisper_lang,
-      "duration": round(float(getattr(info, "duration", 0) or 0), 2),
+      "language": out_lang,
+      "duration": duration,
       "segments": segments,
       "model": model_size,
+      "backend": backend,
       "initialPrompt": initial,
     }
   finally:
@@ -276,7 +365,11 @@ def main(argv: list[str] | None = None) -> int:
   args = ap.parse_args(argv)
 
   ensure_ffmpeg_on_path()
-  print(f"Transcribing {args.audio} ({args.lang}, model={args.model})…", flush=True)
+  print(
+    f"Transcribing {args.audio} ({args.lang}, model={args.model}, "
+    f"backend={whisper_backend_name()})…",
+    flush=True,
+  )
   result = transcribe_audio(
     args.audio,
     lang=args.lang,
@@ -288,7 +381,10 @@ def main(argv: list[str] | None = None) -> int:
   OUT.mkdir(parents=True, exist_ok=True)
   out = args.output or (OUT / safe_out_name(args.audio.stem, args.lang))
   out.write_text(result["text"] + "\n", encoding="utf-8", newline="\n")
-  print(f"Language: {result['language']} · duration ~{result['duration']}s")
+  print(
+    f"Language: {result['language']} · duration ~{result['duration']}s "
+    f"· backend={result['backend']}"
+  )
   print(f"Wrote {out} ({len(result['text'])} chars, {len(result['segments'])} segments)")
   return 0
 

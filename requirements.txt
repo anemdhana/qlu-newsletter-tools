@@ -1,10 +1,11 @@
 # qlu-newsletter-tools — Python packages
 # --------------------------------------
-# Requires Python 3.10–3.14 (3.12 or 3.13 recommended).
-# start.cmd checks the version and exits with a clear message if wrong.
+# Python 3.10+ (including latest). Whisper backend is version-aware:
+#   • < 3.15  → faster-whisper
+#   • ≥ 3.15  → pywhispercpp (faster-whisper native deps lack 3.15 wheels yet)
 #
 # New developer setup (Windows):
-#   1. Install Python 3.12 or 3.13 from https://www.python.org/downloads/
+#   1. Install Python from https://www.python.org/downloads/
 #      (check "Add python.exe to PATH")
 #   2. From this folder:
 #        python -m pip install -r requirements.txt
@@ -19,7 +20,7 @@
 #        winget install Gyan.FFmpeg
 #     Or set FFMPEG_PATH / YT_DLP_PATH to custom executables.
 #   • pick_best_portrait_frame.py → opencv-python-headless (auto-pip on first run)
-#   • Voice type (Whisper) → faster-whisper downloads a model on first use.
+#   • Voice type (Whisper) → model downloads on first use.
 #
 # Optional CLI helpers (CMS / Astro must already be running):
 #   import_theme_readmore.py          → local folder of .md (stdlib + Payload :3000)
@@ -33,4 +34,5 @@ yt-dlp>=2024.8.0
 imageio-ffmpeg>=0.5.1
 gdown>=5.2.0
 opencv-python-headless>=4.8.0
-faster-whisper>=1.0.0
+faster-whisper>=1.0.0; python_version < "3.15"
+pywhispercpp>=1.5.0; python_version >= "3.15"

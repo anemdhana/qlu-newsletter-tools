@@ -454,25 +454,41 @@ def run_pick_portrait(payload: dict) -> dict:
 
 
 def whisper_status() -> dict:
-  try:
-    import faster_whisper  # noqa: F401
+  from whisper_transcribe import ensure_ffmpeg_on_path, whisper_backend_name
 
-    installed = True
-    detail = getattr(faster_whisper, "__version__", "installed")
-  except Exception as e:
-    installed = False
-    detail = str(e)
+  backend = whisper_backend_name()
+  installed = False
+  detail = ""
+  if backend == "pywhispercpp":
+    try:
+      import pywhispercpp  # noqa: F401
+
+      installed = True
+      detail = getattr(pywhispercpp, "__version__", "installed")
+    except Exception as e:
+      detail = str(e)
+  else:
+    try:
+      import faster_whisper  # noqa: F401
+
+      installed = True
+      detail = getattr(faster_whisper, "__version__", "installed")
+    except Exception as e:
+      detail = str(e)
   ffmpeg = None
   try:
-    from whisper_transcribe import ensure_ffmpeg_on_path
-
     ffmpeg = ensure_ffmpeg_on_path()
   except Exception:
     pass
   return {
     "ok": True,
-    "fasterWhisper": installed,
-    "fasterWhisperDetail": detail,
+    "backend": backend,
+    "whisperInstalled": installed,
+    # Keep legacy keys for older voice-type.html copies
+    "fasterWhisper": installed if backend == "faster-whisper" else False,
+    "fasterWhisperDetail": detail if backend == "faster-whisper" else "",
+    "pywhispercpp": installed if backend == "pywhispercpp" else False,
+    "backendDetail": detail,
     "ffmpeg": bool(ffmpeg),
     "ffmpegPath": ffmpeg,
     "defaultModel": "small",

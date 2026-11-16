@@ -24,7 +24,7 @@ if errorlevel 1 (
   echo.
   echo  ERROR: Python not found on PATH.
   echo.
-  echo  Install Python 3.12 or 3.13 from:
+  echo  Install Python 3.10+ from:
   echo    https://www.python.org/downloads/
   echo  Check "Add python.exe to PATH", then re-open this window.
   echo.
@@ -32,23 +32,19 @@ if errorlevel 1 (
   exit /b 1
 )
 
-python -c "import sys; v=sys.version_info; print('  Python %d.%d.%d' % v[:3]); raise SystemExit(0 if (3,10) <= v[:2] <= (3,14) else 1)" 2>nul
+python -c "import sys; v=sys.version_info; print('  Python %d.%d.%d' % v[:3]); raise SystemExit(0 if v[:2] >= (3, 10) else 1)" 2>nul
 if errorlevel 1 (
   echo.
-  echo  ERROR: Unsupported Python version.
-  echo.
-  echo  This project needs Python 3.10–3.14.
-  echo  Recommended: Python 3.12 or 3.13
+  echo  ERROR: Python 3.10 or newer is required.
   echo.
   echo  Download: https://www.python.org/downloads/
   echo  During setup, check "Add python.exe to PATH".
-  echo  Then close this window and run start.cmd again.
-  echo.
-  echo  ^(Python 3.15+ cannot install faster-whisper yet.^)
   echo.
   pause
   exit /b 1
 )
+
+python -c "import sys; print('  Whisper backend: pywhispercpp' if sys.version_info[:2] >= (3, 15) else '  Whisper backend: faster-whisper')"
 
 echo Checking Python packages ^(yt-dlp, imageio-ffmpeg, whisper^)...
 python -m pip install -r "%~dp0requirements.txt" -q
@@ -58,9 +54,6 @@ if errorlevel 1 (
   echo.
   echo  Try manually:
   echo    python -m pip install -r requirements.txt
-  echo.
-  echo  If that still fails, install Python 3.12 or 3.13 from:
-  echo    https://www.python.org/downloads/
   echo.
   pause
   exit /b 1

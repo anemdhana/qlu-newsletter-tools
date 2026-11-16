@@ -10,8 +10,8 @@ Companion to:
 
 ## Setup for a new developer
 
-1. **Python 3.12 or 3.13** (supported: **3.10–3.14**) — [python.org/downloads](https://www.python.org/downloads/)
-   On Windows, check **Add python.exe to PATH**. `start.cmd` exits with a clear error if the version is wrong (e.g. 3.15+).
+1. **Python 3.10+** (latest OK) — [python.org/downloads](https://www.python.org/downloads/)
+   On Windows, check **Add python.exe to PATH**. Whisper uses **faster-whisper** on Python &lt; 3.15 and **pywhispercpp** on 3.15+.
 2. Install packages (includes **yt-dlp** + a bundled **ffmpeg** for frame extract):
 
 ```powershell
@@ -66,7 +66,7 @@ python scripts/download_youtube_captions.py VIDEO_ID --lang te --engine yt-dlp
 
 ### Whisper transcription (Voice type — accurate)
 
-Needs **faster-whisper** + **ffmpeg** (from `requirements.txt`). First run downloads the model.
+Needs Whisper + **ffmpeg** (from `requirements.txt`: faster-whisper or pywhispercpp by Python version). First run downloads the model.
 
 ```powershell
 python scripts/whisper_transcribe.py path\to\audio.webm --lang te --model small

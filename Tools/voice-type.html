@@ -368,10 +368,11 @@ async function refreshDiagnostics() {
     try {
       const res = await fetch("/api/whisper/status");
       const data = await res.json();
-      if (data.fasterWhisper) {
-        rows.push("faster-whisper installed (" + (data.fasterWhisperDetail || "ok") + ").");
+      const backend = data.backend || (data.fasterWhisper ? "faster-whisper" : "whisper");
+      if (data.whisperInstalled || data.fasterWhisper || data.pywhispercpp) {
+        rows.push(backend + " installed (" + (data.backendDetail || data.fasterWhisperDetail || "ok") + ").");
       } else {
-        rows.push("faster-whisper missing — run: python -m pip install faster-whisper");
+        rows.push(backend + " missing — run: python -m pip install -r requirements.txt");
       }
       rows.push(data.ffmpeg ? "ffmpeg available for audio decode." : "ffmpeg missing — install requirements.txt");
     } catch (_) {
