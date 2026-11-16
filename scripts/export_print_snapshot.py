@@ -657,7 +657,65 @@ def write_client_js(assets: Path) -> None:
 """,
     encoding="utf-8",
   )
-  print("  wrote card-masonry.js + birthday-splash.js + newsview.js + newsletterReel.js")
+  gallery = assets / "cardGallery.js"
+  gallery.write_text(
+    r"""/* In-card image strip: prev/next + scroll-snap — static export */
+(function () {
+  function initCardGallery(root) {
+    root = root || document;
+    Array.prototype.forEach.call(root.querySelectorAll("[data-card-gallery]"), function (gallery) {
+      if (gallery.getAttribute("data-gallery-ready") === "1") return;
+      var track = gallery.querySelector("[data-card-gallery-track]");
+      if (!track) return;
+      var slides = Array.prototype.slice.call(track.querySelectorAll("[data-card-gallery-slide]"));
+      if (slides.length < 2) return;
+      gallery.setAttribute("data-gallery-ready", "1");
+      var prev = gallery.querySelector("[data-card-gallery-prev]");
+      var next = gallery.querySelector("[data-card-gallery-next]");
+      var dots = Array.prototype.slice.call(gallery.querySelectorAll("[data-card-gallery-dot]"));
+      function setActive(index) {
+        dots.forEach(function (d, i) { d.classList.toggle("is-active", i === index); });
+      }
+      function goTo(index) {
+        var i = Math.max(0, Math.min(slides.length - 1, index));
+        var target = slides[i];
+        if (!target) return;
+        track.scrollTo({ left: target.offsetLeft, behavior: "smooth" });
+        setActive(i);
+      }
+      function currentIndex() {
+        var left = track.scrollLeft;
+        var best = 0;
+        var bestDist = Infinity;
+        slides.forEach(function (el, i) {
+          var d = Math.abs(el.offsetLeft - left);
+          if (d < bestDist) { bestDist = d; best = i; }
+        });
+        return best;
+      }
+      if (prev) prev.addEventListener("click", function (e) {
+        e.preventDefault(); e.stopPropagation(); goTo(currentIndex() - 1);
+      });
+      if (next) next.addEventListener("click", function (e) {
+        e.preventDefault(); e.stopPropagation(); goTo(currentIndex() + 1);
+      });
+      dots.forEach(function (dot, i) {
+        dot.addEventListener("click", function (e) {
+          e.preventDefault(); e.stopPropagation(); goTo(i);
+        });
+      });
+      track.addEventListener("scroll", function () { setActive(currentIndex()); }, { passive: true });
+      setActive(0);
+    });
+  }
+  function boot() { initCardGallery(document); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+})();
+""",
+    encoding="utf-8",
+  )
+  print("  wrote card-masonry.js + birthday-splash.js + newsview.js + newsletterReel.js + cardGallery.js")
 
 
 class AssetStore:
@@ -820,6 +878,7 @@ def rewrite_html(
   splash_href = store.local_rel("birthday-splash.js", from_dir)
   newsview_href = store.local_rel("newsview.js", from_dir)
   reel_href = store.local_rel("newsletterReel.js", from_dir)
+  gallery_href = store.local_rel("cardGallery.js", from_dir)
   favicon = store.local_rel("favicon.svg", from_dir)
 
   head_inject = (
@@ -834,6 +893,7 @@ def rewrite_html(
   foot_parts = [
     f'<script src="{masonry_href}" defer></script>',
     f'<script src="{splash_href}" defer></script>',
+    f'<script src="{gallery_href}" defer></script>',
   ]
   if view == "news":
     foot_parts.append(f'<script src="{newsview_href}" defer></script>')
@@ -980,7 +1040,7 @@ def snapshot_page(
 def write_catalog(docs: Path, month: str, *, view: str = "print") -> None:
   label = "News" if view == "news" else "Print reel"
   body_class = "is-news"
-  main_class = "news-main nreel-main" if view == "print" else "news-main"
+  main_class = "news-main"
   catalog = docs / "index.html"
   month_index = docs / "issues" / month / "index.html"
   ensure_dir(month_index.parent)
@@ -1065,6 +1125,7 @@ def run_snapshot(
   store.map["qlu.css"] = "qlu.css"
   store.map["newsview.js"] = "newsview.js"
   store.map["newsletterReel.js"] = "newsletterReel.js"
+  store.map["cardGallery.js"] = "cardGallery.js"
   store.map["card-masonry.js"] = "card-masonry.js"
   store.map["birthday-splash.js"] = "birthday-splash.js"
 
