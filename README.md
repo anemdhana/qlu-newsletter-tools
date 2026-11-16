@@ -10,8 +10,8 @@ Companion to:
 
 ## Setup for a new developer
 
-1. **Python 3.12 or 3.13** (3.10–3.14 OK) — [python.org/downloads](https://www.python.org/downloads/)
-   On Windows, check **Add python.exe to PATH**. Avoid **3.15+** for now (`faster-whisper` has no install yet; hub still runs but Voice type / Whisper is skipped).
+1. **Python 3.12 or 3.13** (supported: **3.10–3.14**) — [python.org/downloads](https://www.python.org/downloads/)
+   On Windows, check **Add python.exe to PATH**. `start.cmd` exits with a clear error if the version is wrong (e.g. 3.15+).
 2. Install packages (includes **yt-dlp** + a bundled **ffmpeg** for frame extract):
 
 ```powershell
