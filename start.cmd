@@ -32,10 +32,8 @@ if errorlevel 1 (
   exit /b 1
 )
 
-python -c "import sys; v=sys.version_info; print('  Python %d.%d.%d' % v[:3]); raise SystemExit(0 if v[:2] >= (3, 10) else 1)" 2>nul
+python "%~dp0scripts\check_python_env.py"
 if errorlevel 1 (
-  echo.
-  echo  ERROR: Python 3.10 or newer is required.
   echo.
   echo  Download: https://www.python.org/downloads/
   echo  During setup, check "Add python.exe to PATH".
@@ -43,8 +41,6 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-
-python -c "import sys; print('  Whisper backend: pywhispercpp' if sys.version_info[:2] >= (3, 15) else '  Whisper backend: faster-whisper')"
 
 echo Checking Python packages ^(yt-dlp, imageio-ffmpeg, whisper^)...
 python -m pip install -r "%~dp0requirements.txt" -q
